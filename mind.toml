@@ -1,0 +1,88 @@
+[manifest]
+schema     = "mind/v2.0"
+generation = 1
+updated    = 2026-03-10T00:13:40Z
+
+[project]
+name        = "mind-cli"
+description = "CLI and TUI for the Mind Agent Framework"
+type        = "cli"
+
+[project.stack]
+language  = "go@1.23"
+framework = "cobra+bubbletea"
+testing   = "go-test"
+
+[project.commands]
+dev       = "go run ."
+test      = "go test ./..."
+lint      = "golangci-lint run ./..."
+build     = "go build -o mind ."
+
+[profiles]
+active = []
+
+[documents.spec.project-brief]
+id     = "doc:spec/project-brief"
+path   = "docs/spec/project-brief.md"
+zone   = "spec"
+status = "draft"
+
+[documents.spec.requirements]
+id     = "doc:spec/requirements"
+path   = "docs/spec/requirements.md"
+zone   = "spec"
+status = "draft"
+
+[documents.spec.architecture]
+id     = "doc:spec/architecture"
+path   = "docs/spec/architecture.md"
+zone   = "spec"
+status = "draft"
+
+[documents.spec.domain-model]
+id     = "doc:spec/domain-model"
+path   = "docs/spec/domain-model.md"
+zone   = "spec"
+status = "draft"
+
+[documents.spec.api-contracts]
+id     = "doc:spec/api-contracts"
+path   = "docs/spec/api-contracts.md"
+zone   = "spec"
+status = "draft"
+
+[documents.blueprints.index]
+id     = "doc:blueprints/INDEX"
+path   = "docs/blueprints/INDEX.md"
+zone   = "blueprints"
+status = "active"
+
+[documents.state.current]
+id     = "doc:state/current"
+path   = "docs/state/current.md"
+zone   = "state"
+status = "active"
+
+[documents.state.workflow]
+id     = "doc:state/workflow"
+path   = "docs/state/workflow.md"
+zone   = "state"
+status = "active"
+
+[documents.knowledge.glossary]
+id     = "doc:knowledge/glossary"
+path   = "docs/knowledge/glossary.md"
+zone   = "knowledge"
+status = "draft"
+
+[governance]
+max-retries     = 2
+review-policy   = "evidence-based"
+commit-policy   = "conventional"
+branch-strategy = "type-descriptor"
+
+[manifest.invariants]
+every-document-has-owner   = false
+no-orphan-dependencies     = true
+no-circular-dependencies   = true

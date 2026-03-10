@@ -1,0 +1,7 @@
+# Build output
+/mind
+
+# Mind Agent Framework — volatile iteration files
+docs/iterations/**/WIP.md
+docs/iterations/**/PLAN.md
+docs/iterations/**/LEARNINGS.md
