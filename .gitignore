@@ -1,7 +1,14 @@
 # Build output
+/mind
+*.exe
+
+# Mind Agent Framework — runtime directories
 .mind/
-archive/
 .claude/
+archive/
+
+# Working files
+prompt.txt
 # Mind Agent Framework — volatile iteration files
 docs/iterations/**/WIP.md
 docs/iterations/**/PLAN.md
