@@ -125,6 +125,17 @@ func (r *Renderer) renderHealthText(h *domain.ProjectHealth) string {
 		fmt.Fprintf(&b, "\nLast iteration: %s (%s)\n", h.LastIteration.DirName, h.LastIteration.Status)
 	}
 
+	// Staleness panel (FR-77)
+	if h.Staleness != nil && len(h.Staleness.Stale) > 0 {
+		fmt.Fprintln(&b)
+		fmt.Fprintf(&b, "Staleness: %s (%d stale)\n", h.Staleness.Status, len(h.Staleness.Stale))
+		fmt.Fprintln(&b, strings.Repeat("─", 50))
+		for id, reason := range h.Staleness.Stale {
+			fmt.Fprintf(&b, "  ! %s\n", id)
+			fmt.Fprintf(&b, "    %s\n", reason)
+		}
+	}
+
 	if len(h.Warnings) > 0 {
 		fmt.Fprintln(&b, "\nWarnings")
 		fmt.Fprintln(&b, strings.Repeat("─", 50))

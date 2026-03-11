@@ -67,18 +67,30 @@ func (s *ValidationService) RunConfig(projectRoot string) domain.ValidationRepor
 }
 
 // RunAll executes all validation suites and returns a unified report.
-func (s *ValidationService) RunAll(projectRoot string, strict bool) domain.UnifiedValidationReport {
+// If reconcileResult is non-nil, the reconcile suite is included.
+func (s *ValidationService) RunAll(projectRoot string, strict bool, reconcileResult ...*domain.ReconcileResult) domain.UnifiedValidationReport {
 	docs := s.RunDocs(projectRoot, strict)
 	refs := s.RunRefs(projectRoot)
 	config := s.RunConfig(projectRoot)
 
+	suites := []domain.ValidationReport{docs, refs, config}
+
+	// Include reconcile suite if a result was provided
+	if len(reconcileResult) > 0 && reconcileResult[0] != nil {
+		reconcile := validate.ReconcileSuite(reconcileResult[0], strict)
+		suites = append(suites, reconcile)
+	}
+
+	summary := domain.UnifiedValidationSummary{}
+	for _, suite := range suites {
+		summary.Total += suite.Total
+		summary.Passed += suite.Passed
+		summary.Failed += suite.Failed
+		summary.Warnings += suite.Warnings
+	}
+
 	return domain.UnifiedValidationReport{
-		Suites: []domain.ValidationReport{docs, refs, config},
-		Summary: domain.UnifiedValidationSummary{
-			Total:    docs.Total + refs.Total + config.Total,
-			Passed:   docs.Passed + refs.Passed + config.Passed,
-			Failed:   docs.Failed + refs.Failed + config.Failed,
-			Warnings: docs.Warnings + refs.Warnings + config.Warnings,
-		},
+		Suites:  suites,
+		Summary: summary,
 	}
 }

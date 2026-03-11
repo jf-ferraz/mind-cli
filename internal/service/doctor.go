@@ -64,6 +64,9 @@ func (s *DoctorService) Run(fix bool) *domain.DoctorReport {
 	// Iteration checks
 	s.checkIterations(report)
 
+	// Staleness checks (FR-81)
+	s.checkStaleness(report)
+
 	// Count summary
 	for _, d := range report.Diagnostics {
 		switch d.Status {
@@ -240,6 +243,30 @@ func (s *DoctorService) checkIterations(report *domain.DoctorReport) {
 			s.addDiag(report, "iterations", iter.DirName, "warn",
 				fmt.Sprintf("%d/%d artifacts present", complete, len(domain.ExpectedArtifacts)),
 				"Complete remaining artifacts", false)
+		}
+	}
+}
+
+func (s *DoctorService) checkStaleness(report *domain.DoctorReport) {
+	if s.lockRepo == nil || !s.lockRepo.Exists() {
+		return
+	}
+
+	lock, err := s.lockRepo.Read()
+	if err != nil || lock == nil {
+		return
+	}
+
+	for id, entry := range lock.Entries {
+		if entry.Stale {
+			reason := entry.StaleReason
+			if reason == "" {
+				reason = "document is stale"
+			}
+			s.addDiag(report, "staleness", id, "warn",
+				fmt.Sprintf("%s: %s", id, reason),
+				"Review and update this document, then run 'mind reconcile --force'",
+				false)
 		}
 	}
 }

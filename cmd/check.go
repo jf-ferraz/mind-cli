@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/jf-ferraz/mind-cli/domain"
 	"github.com/spf13/cobra"
 )
 
@@ -86,7 +87,14 @@ func runCheckConfig(cmd *cobra.Command, args []string) error {
 }
 
 func runCheckAll(cmd *cobra.Command, args []string) error {
-	report := validationSvc.RunAll(projectRoot, flagStrict)
+	// Try to get reconcile result for the reconcile suite
+	var reconcileResult *domain.ReconcileResult
+	result, err := reconcileSvc.Reconcile(projectRoot, domain.ReconcileOpts{CheckOnly: true})
+	if err == nil {
+		reconcileResult = result
+	}
+
+	report := validationSvc.RunAll(projectRoot, flagStrict, reconcileResult)
 
 	fmt.Print(renderer.RenderUnifiedValidation(&report))
 
