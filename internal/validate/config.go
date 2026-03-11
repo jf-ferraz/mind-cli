@@ -34,6 +34,8 @@ func ConfigSuite() *Suite {
 			{8, "document zones are valid", domain.LevelFail, checkDocZones},
 			{9, "document statuses are valid", domain.LevelFail, checkDocStatuses},
 			{10, "governance.max-retries in range", domain.LevelWarn, checkMaxRetries},
+			{11, "graph edge IDs are valid", domain.LevelFail, checkGraphEdgeIDs},
+			{12, "graph edge types are valid", domain.LevelFail, checkGraphEdgeTypes},
 		},
 	}
 }
@@ -193,6 +195,47 @@ func checkMaxRetries(ctx *CheckContext) (bool, string) {
 	}
 	if cfg.Governance.MaxRetries < 0 || cfg.Governance.MaxRetries > 5 {
 		return false, fmt.Sprintf("governance.max-retries is %d, must be 0-5", cfg.Governance.MaxRetries)
+	}
+	return true, ""
+}
+
+func checkGraphEdgeIDs(ctx *CheckContext) (bool, string) {
+	cfg := getConfig(ctx)
+	if cfg == nil {
+		return true, ""
+	}
+	var bad []string
+	for _, edge := range cfg.Graph {
+		if edge.From != "" && !docIDRe.MatchString(edge.From) {
+			bad = append(bad, edge.From)
+		}
+		if edge.To != "" && !docIDRe.MatchString(edge.To) {
+			bad = append(bad, edge.To)
+		}
+	}
+	if len(bad) > 0 {
+		return false, "Invalid graph edge IDs: " + strings.Join(bad, ", ")
+	}
+	return true, ""
+}
+
+func checkGraphEdgeTypes(ctx *CheckContext) (bool, string) {
+	cfg := getConfig(ctx)
+	if cfg == nil {
+		return true, ""
+	}
+	var bad []string
+	for _, edge := range cfg.Graph {
+		if edge.Type != "" && !domain.ValidEdgeType(string(edge.Type)) {
+			bad = append(bad, string(edge.Type))
+		}
+	}
+	if len(bad) > 0 {
+		validTypes := make([]string, len(domain.ValidEdgeTypes))
+		for i, t := range domain.ValidEdgeTypes {
+			validTypes[i] = string(t)
+		}
+		return false, fmt.Sprintf("Invalid graph edge types: %s (valid: %s)", strings.Join(bad, ", "), strings.Join(validTypes, ", "))
 	}
 	return true, ""
 }

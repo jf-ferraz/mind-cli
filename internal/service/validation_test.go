@@ -43,7 +43,7 @@ func TestValidationServiceRunRefs(t *testing.T) {
 	}
 }
 
-// TestValidationServiceRunConfig verifies FR-41: RunConfig returns 10 checks.
+// TestValidationServiceRunConfig verifies FR-41: RunConfig returns 12 checks (10 Phase 1 + 2 graph).
 func TestValidationServiceRunConfig(t *testing.T) {
 	docRepo := mem.NewDocRepo()
 	iterRepo := mem.NewIterationRepo()
@@ -56,8 +56,8 @@ func TestValidationServiceRunConfig(t *testing.T) {
 	if report.Suite != "config" {
 		t.Errorf("Suite = %q, want config", report.Suite)
 	}
-	if report.Total != 10 {
-		t.Errorf("Total = %d, want 10", report.Total)
+	if report.Total != 12 {
+		t.Errorf("Total = %d, want 12", report.Total)
 	}
 }
 
@@ -85,7 +85,7 @@ func TestValidationServiceRunAll(t *testing.T) {
 	}
 
 	// Summary totals should match
-	expectedTotal := 17 + 11 + 10 // docs + refs + config
+	expectedTotal := 17 + 11 + 12 // docs + refs + config
 	if report.Summary.Total != expectedTotal {
 		t.Errorf("Summary.Total = %d, want %d", report.Summary.Total, expectedTotal)
 	}

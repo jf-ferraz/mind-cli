@@ -8,14 +8,14 @@ import (
 	"github.com/jf-ferraz/mind-cli/internal/repo/mem"
 )
 
-// TestConfigSuiteStructure verifies FR-41: config validation suite has 10 checks.
+// TestConfigSuiteStructure verifies FR-41: config validation suite has 12 checks (10 Phase 1 + 2 graph).
 func TestConfigSuiteStructure(t *testing.T) {
 	suite := ConfigSuite()
 	if suite.Name != "config" {
 		t.Errorf("Suite.Name = %q, want config", suite.Name)
 	}
-	if len(suite.Checks) != 10 {
-		t.Errorf("ConfigSuite has %d checks, want 10", len(suite.Checks))
+	if len(suite.Checks) != 12 {
+		t.Errorf("ConfigSuite has %d checks, want 12", len(suite.Checks))
 	}
 }
 
@@ -357,6 +357,78 @@ func TestCheckMaxRetries(t *testing.T) {
 			passed, _ := checkMaxRetries(ctx)
 			if passed != tt.wantPass {
 				t.Errorf("checkMaxRetries(retries=%d) = %v, want %v", tt.maxRetries, passed, tt.wantPass)
+			}
+		})
+	}
+}
+
+// TestCheckGraphEdgeIDs verifies FR-84: graph edge IDs match doc ID format.
+func TestCheckGraphEdgeIDs(t *testing.T) {
+	tests := []struct {
+		name     string
+		from     string
+		to       string
+		wantPass bool
+	}{
+		{name: "valid edges", from: "doc:spec/requirements", to: "doc:spec/architecture", wantPass: true},
+		{name: "invalid from", from: "bad-id", to: "doc:spec/architecture", wantPass: false},
+		{name: "invalid to", from: "doc:spec/requirements", to: "not-a-doc-id", wantPass: false},
+		{name: "no graph", from: "", to: "", wantPass: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configRepo := mem.NewConfigRepo()
+			cfg := &domain.Config{
+				Manifest: domain.Manifest{Schema: "mind/v1.0", Generation: 1},
+				Project:  domain.ProjectMeta{Name: "test", Type: "cli"},
+			}
+			if tt.from != "" || tt.to != "" {
+				cfg.Graph = []domain.GraphEdge{
+					{From: tt.from, To: tt.to, Type: domain.EdgeInforms},
+				}
+			}
+			configRepo.Config = cfg
+			ctx := &CheckContext{ConfigRepo: configRepo}
+			passed, _ := checkGraphEdgeIDs(ctx)
+			if passed != tt.wantPass {
+				t.Errorf("checkGraphEdgeIDs(from=%q, to=%q) = %v, want %v", tt.from, tt.to, passed, tt.wantPass)
+			}
+		})
+	}
+}
+
+// TestCheckGraphEdgeTypes verifies FR-84: graph edge types must be valid.
+func TestCheckGraphEdgeTypes(t *testing.T) {
+	tests := []struct {
+		name     string
+		edgeType domain.EdgeType
+		wantPass bool
+	}{
+		{name: "informs", edgeType: domain.EdgeInforms, wantPass: true},
+		{name: "requires", edgeType: domain.EdgeRequires, wantPass: true},
+		{name: "validates", edgeType: domain.EdgeValidates, wantPass: true},
+		{name: "invalid type", edgeType: "depends", wantPass: false},
+		{name: "empty type", edgeType: "", wantPass: true}, // empty = not set
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configRepo := mem.NewConfigRepo()
+			cfg := &domain.Config{
+				Manifest: domain.Manifest{Schema: "mind/v1.0", Generation: 1},
+				Project:  domain.ProjectMeta{Name: "test", Type: "cli"},
+			}
+			if tt.edgeType != "" {
+				cfg.Graph = []domain.GraphEdge{
+					{From: "doc:spec/requirements", To: "doc:spec/architecture", Type: tt.edgeType},
+				}
+			}
+			configRepo.Config = cfg
+			ctx := &CheckContext{ConfigRepo: configRepo}
+			passed, msg := checkGraphEdgeTypes(ctx)
+			if passed != tt.wantPass {
+				t.Errorf("checkGraphEdgeTypes(type=%q) = %v, want %v (msg: %s)", tt.edgeType, passed, tt.wantPass, msg)
 			}
 		})
 	}
