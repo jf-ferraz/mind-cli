@@ -50,6 +50,18 @@ type ConfigRepo interface {
 	WriteProjectConfig(cfg *domain.Config) error
 }
 
+// LockRepo manages the mind.lock reconciliation state file.
+type LockRepo interface {
+	// Read loads mind.lock. Returns nil, nil if file does not exist.
+	Read() (*domain.LockFile, error)
+
+	// Write persists the lock file atomically (write to temp, rename).
+	Write(lock *domain.LockFile) error
+
+	// Exists returns true if mind.lock exists on disk.
+	Exists() bool
+}
+
 // BriefRepo handles project brief parsing and validation.
 type BriefRepo interface {
 	// ParseBrief reads and analyzes the project brief.
