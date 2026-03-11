@@ -355,3 +355,129 @@ Phase 1.5 adds hash-based content tracking with staleness propagation through a 
 - **FR-85**: GIVEN `docs/spec/notes.md` exists but is not in `[documents]` WHEN `mind reconcile` runs THEN a warning about the undeclared file appears.
 - **FR-86**: GIVEN 50 documents and 40 edges WHEN `mind reconcile --force` runs THEN completion time is under 200ms.
 - **FR-87**: GIVEN 50 documents with 1 changed WHEN `mind reconcile` runs THEN completion time is under 50ms.
+
+---
+
+## Phase 2: TUI Dashboard
+
+Phase 2 adds the `mind tui` command -- a full-screen interactive Bubble Tea dashboard with 5 tabs (Status, Documents, Iterations, Checks, Quality). It also resolves 4 SHOULD items from Phase 1.5 that directly impact TUI quality. No changes to existing CLI commands. New dependencies: Bubble Tea, Bubbles, Glamour.
+
+### SHOULD Fixes (Pre-TUI Prerequisites)
+
+- **FR-88**: `mind reconcile` MUST reject the combination of `--check` and `--force` flags with an error message and exit code 2. [MUST]
+- **FR-89**: `ReconcileSuite` MUST include a check for documents declared in `mind.toml [documents]` that are missing from disk. Each missing document MUST produce a WARN-level CheckResult entry. [MUST]
+- **FR-90**: All repository and service construction MUST be centralized in a `buildDeps()` function (or equivalent) in `main.go` callable from both CLI and TUI paths. Command handlers MUST NOT construct repositories or services directly. [MUST]
+- **FR-91**: `mind docs search` MUST perform file discovery and content reading through the DocRepo interface instead of direct `filepath.WalkDir` calls. [MUST]
+
+### TUI Command
+
+- **FR-92**: `mind tui` MUST launch a full-screen interactive Bubble Tea application that takes over the terminal, loads project data through existing service interfaces, and renders a 5-tab dashboard. [MUST]
+
+### App Shell
+
+- **FR-93**: The TUI MUST render a title bar showing: "Mind Framework" label, project name from `mind.toml`, current git branch (if available), and framework version. [MUST]
+- **FR-94**: The TUI MUST render a tab bar with 5 tabs: [1 Status], [2 Docs], [3 Iterations], [4 Check], [5 Quality]. Active tab is bold+underline. Tabs switchable via number keys (1-5), Tab (next, wrapping), Shift+Tab (previous, wrapping). [MUST]
+- **FR-95**: Global keys MUST work in every tab: 1-5 (switch tab), Tab/Shift+Tab (cycle), q (quit when no modal), Ctrl+C (force quit), ? (help overlay), r (refresh when no text input focused). [MUST]
+- **FR-96**: The TUI MUST render a bottom status bar showing context-sensitive key hints for the active tab and cursor position information. [MUST]
+
+### Tab 1: Status
+
+- **FR-97**: Tab 1 MUST display zone health as progress bars for all 5 zones with zone label, visual progress, and numeric fraction (present/total). [MUST]
+- **FR-98**: Tab 1 SHOULD display a staleness section when `mind.lock` exists with stale documents, listing stale document names with `●` bullets. [SHOULD]
+- **FR-99**: Tab 1 MUST display workflow state: running (type, agent chain, branch) or idle (last iteration). [MUST]
+- **FR-100**: Tab 1 MUST display warnings (`⚠` prefix) and suggestions (`→` prefix) from ProjectHealth. Sections appear only when they have content. [MUST]
+- **FR-101**: Tab 1 MUST use two-column layout at widths >= 80 (left: health/staleness/warnings/suggestions, right: workflow/quick actions). SHOULD stack vertically below 80. [MUST]
+
+### Tab 2: Documents
+
+- **FR-102**: Tab 2 MUST display all documents in a navigable list grouped by zone with filename, status indicator, status label, modification date, and file size. Cursor row highlighted. [MUST]
+- **FR-103**: Tab 2 MUST provide zone filter bar with shortcuts: a (all), s (spec), b (blueprints), t (state), i (iterations), k (knowledge). Active filter visually indicated. [MUST]
+- **FR-104**: Tab 2 MUST support inline search via `/` with real-time case-insensitive filtering. Esc clears search. [MUST]
+- **FR-105**: Tab 2 SHOULD support a preview pane (Enter to toggle) rendering markdown via Glamour. List shrinks to 40%, preview takes 60%. [SHOULD]
+- **FR-106**: Tab 2 SHOULD support opening selected document in `$EDITOR` via `e`, suspending TUI during editing. [SHOULD]
+
+### Tab 3: Iterations
+
+- **FR-107**: Tab 3 MUST display iterations in a table with columns: #, type, name, status, date, files (artifact completeness). Navigable with arrow keys/j/k. [MUST]
+- **FR-108**: Tab 3 MUST provide type filter bar: a (all), n (NEW_PROJECT), e (ENHANCEMENT), b (BUG_FIX), r (REFACTOR). [MUST]
+- **FR-109**: Tab 3 SHOULD support expanding selected iteration (Enter) to show inline artifact details. [SHOULD]
+
+### Tab 4: Checks
+
+- **FR-110**: Tab 4 MUST display validation results as an accordion with sections per suite. Headers show expand/collapse indicator, suite name, check count, pass/fail/warn summary. [MUST]
+- **FR-111**: Tab 4 MUST run validation automatically on first activation with loading spinner. Re-run via `r`. [MUST]
+- **FR-112**: Tab 4 SHOULD support detail pane toggle (Space) for individual checks showing file, issue, and fix. [SHOULD]
+- **FR-113**: Tab 4 MUST display overall summary bar with aggregated pass/fail/warn counts. [MUST]
+
+### Tab 5: Quality
+
+- **FR-114**: Tab 5 SHOULD display ASCII line chart of convergence scores with Y-axis (1.0-5.0), dates, data points, Gate 0 line. Navigate points with ←/→. [SHOULD]
+- **FR-115**: Tab 5 MUST display empty state message when no quality-log.yml exists or is empty. [MUST]
+- **FR-116**: Tab 5 SHOULD display selected data point details: topic, variant, gate result, 6 dimension bars, personas, output path. [SHOULD]
+
+### Help Overlay
+
+- **FR-117**: `?` MUST toggle a centered help overlay listing global and tab-specific keybindings. Closes on `?` or Esc. While open, `q` closes overlay (does not quit). [MUST]
+
+### Responsive Design
+
+- **FR-118**: The TUI MUST require minimum 80x24 terminal. Below minimum, display "Terminal too small" message instead of full interface. [MUST]
+- **FR-119**: The TUI MUST handle terminal resize gracefully -- recalculate layout, re-render without crash, toggle "too small" message as needed. [MUST]
+
+### Data Loading
+
+- **FR-120**: The TUI MUST load data asynchronously. Each view MUST display Loading/Error/Empty/Ready states. Loading MUST NOT block the UI thread. [MUST]
+- **FR-121**: `r` (when no text input focused) MUST re-load all data. Existing data remains visible during refresh. [MUST]
+- **FR-122**: Validation MUST NOT run on init. It MUST run lazily on first Tab 4 activation or `r` on Tab 4. [MUST]
+
+### Tab State and Terminal
+
+- **FR-123**: Tab switching MUST preserve each tab's local state: cursor position, scroll position, filter selection, expanded items, search query. [MUST]
+- **FR-124**: On exit (q, Ctrl+C, or error), the TUI MUST restore terminal state: cursor visible, input echoing, alternate screen exited. [MUST]
+
+### Phase 2 Non-Functional Requirements
+
+- **NFR-12**: `mind tui` MUST launch (first frame) in under 500ms for a 50-document project. [MUST]
+- **NFR-13**: Tab switching MUST complete in under 50ms. [MUST]
+- **NFR-14**: TUI SHOULD use no more than 50MB memory during normal operation. [SHOULD]
+- **NFR-15**: `tui/` Update() test coverage SHOULD be >= 60%. View() excluded from coverage. [SHOULD]
+
+### Phase 2 Acceptance Criteria
+
+- **FR-88**: GIVEN `mind reconcile --check --force` WHEN invoked THEN exit code is 2 with "mutually exclusive" error on stderr.
+- **FR-89**: GIVEN 5 documents declared with 1 missing from disk WHEN `mind check all` runs THEN reconcile suite contains a WARN for the missing document.
+- **FR-90**: GIVEN `mind tui` WHEN it initializes THEN it receives all services through the same wiring function used by CLI commands.
+- **FR-91**: GIVEN `mind docs search "auth"` WHEN run THEN results are produced through DocRepo, not direct filepath.WalkDir.
+- **FR-92**: GIVEN a valid Mind project WHEN `mind tui` runs THEN a full-screen application launches. GIVEN `q` is pressed THEN it exits cleanly.
+- **FR-93**: GIVEN project "mind-cli" on branch "main" WHEN the TUI renders THEN the title bar shows project name, branch, and version.
+- **FR-94**: GIVEN Tab 1 is active WHEN user presses `3` THEN Tab 3 becomes active. GIVEN Tab 5 WHEN user presses Tab THEN Tab 1 activates (wrap).
+- **FR-95**: GIVEN Tab 2 with search input focused WHEN user presses `r` THEN `r` is typed (not refresh). GIVEN help overlay open WHEN user presses `q` THEN overlay closes.
+- **FR-96**: GIVEN Tab 2 with 22 documents and cursor on row 3 WHEN status bar renders THEN it shows "3/22 docs".
+- **FR-97**: GIVEN 4/5 spec documents WHEN Tab 1 renders THEN spec zone progress bar shows correct fraction.
+- **FR-98**: GIVEN `mind.lock` with 2 stale entries WHEN Tab 1 renders THEN staleness section appears. GIVEN no lock file THEN no staleness section.
+- **FR-99**: GIVEN active workflow type NEW_PROJECT WHEN Tab 1 renders THEN workflow panel shows running state. GIVEN idle THEN shows "State: idle".
+- **FR-100**: GIVEN 2 warnings and 1 suggestion WHEN Tab 1 renders THEN both sections appear. GIVEN 0 warnings THEN warnings section is omitted.
+- **FR-101**: GIVEN width 100 WHEN Tab 1 renders THEN two columns side by side. GIVEN width 78 THEN single column.
+- **FR-102**: GIVEN 18 documents WHEN Tab 2 renders THEN all appear grouped by zone. GIVEN stub document THEN shows `✗` indicator.
+- **FR-103**: GIVEN all documents shown WHEN user presses `s` THEN only spec documents appear. GIVEN `a` THEN all zones shown.
+- **FR-104**: GIVEN Tab 2 WHEN user presses `/` and types "brief" THEN only matching documents appear. GIVEN Esc THEN search clears.
+- **FR-105**: GIVEN document selected WHEN Enter pressed THEN preview pane opens with rendered markdown. GIVEN Esc THEN preview closes.
+- **FR-106**: GIVEN `$EDITOR=vim` WHEN `e` pressed THEN vim opens; TUI resumes after exit.
+- **FR-107**: GIVEN 6 iterations WHEN Tab 3 renders THEN table shows all 6 with correct columns. GIVEN iteration with 4/5 artifacts THEN shows "4/5".
+- **FR-108**: GIVEN Tab 3 WHEN user presses `e` THEN only ENHANCEMENT iterations shown. GIVEN `a` THEN all types shown.
+- **FR-109**: GIVEN iteration selected WHEN Enter pressed THEN inline artifact details expand. GIVEN Enter again THEN collapses.
+- **FR-110**: GIVEN 4 validation suites WHEN Tab 4 renders THEN 4 accordion headers appear. GIVEN Enter on header THEN expands to show checks.
+- **FR-111**: GIVEN first visit to Tab 4 WHEN tab activates THEN spinner appears and validation runs. GIVEN `r` pressed THEN validation re-runs.
+- **FR-112**: GIVEN failed check selected WHEN Space pressed THEN detail pane shows file, issue, fix.
+- **FR-113**: GIVEN 30/32 pass, 1 fail, 1 warn WHEN Tab 4 renders THEN summary bar shows correct counts.
+- **FR-114**: GIVEN 5 quality entries WHEN Tab 5 renders THEN ASCII chart with 5 points appears. GIVEN `→` THEN next point selected.
+- **FR-115**: GIVEN no quality-log.yml WHEN Tab 5 renders THEN empty state message appears.
+- **FR-116**: GIVEN selected data point WHEN Tab 5 renders THEN topic, variant, gate, and 6 dimension bars appear.
+- **FR-117**: GIVEN Tab 2 active WHEN `?` pressed THEN help overlay shows Docs-specific keys. GIVEN Esc THEN overlay closes.
+- **FR-118**: GIVEN terminal 79x24 WHEN TUI renders THEN "Terminal too small" message. GIVEN 80x24 THEN full dashboard.
+- **FR-119**: GIVEN TUI at 120x40 WHEN resized to 80x24 THEN layout adapts. GIVEN resized to 70x20 THEN "too small" message. GIVEN back to 90x30 THEN dashboard resumes.
+- **FR-120**: GIVEN TUI launches WHEN data loading THEN spinner shown. GIVEN load error THEN error message with retry hint.
+- **FR-121**: GIVEN stale data on Tab 1 WHEN `r` pressed THEN data reloads. Existing data visible during refresh.
+- **FR-122**: GIVEN TUI launches on Tab 1 WHEN no interaction THEN no validation runs. GIVEN switch to Tab 4 THEN validation starts.
+- **FR-123**: GIVEN Tab 2 cursor on row 5 with spec filter WHEN switch to Tab 3 and back THEN cursor on row 5, spec filter active.
+- **FR-124**: GIVEN TUI running WHEN `q` pressed THEN terminal restored (cursor visible, input echoing, alternate screen exited).

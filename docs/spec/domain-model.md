@@ -386,3 +386,45 @@ ProjectHealth 1───0..1 LockFile (read from mind.lock for staleness panel)
 |----|-----------|
 | **DC-3** (updated) | All enums (Zone, DocStatus, BriefGate, RequestType, IterationStatus, CheckLevel, **EdgeType, LockStatus, EntryStatus**) are typed string constants, not raw strings. |
 | **DC-4** (updated) | `Slugify()`, `Classify()`, **and `BuildGraph()`** are the only domain functions with logic. All are pure (no side effects, deterministic). `BuildGraph()` constructs forward/reverse adjacency lists from a slice of GraphEdge. |
+
+---
+
+## Phase 2: TUI Dashboard Domain Extensions
+
+### New Entities
+
+| Entity | Description | Key Attributes | Relationships |
+|--------|-------------|----------------|---------------|
+| **QualityEntry** | A single convergence analysis result parsed from `quality-log.yml`. Represents one data point in the quality score trend. | Topic (string), Variant (string), Date (time.Time), Score (float64, 0.0-5.0), GatePass (bool), Dimensions ([]QualityDimension), Personas ([]string), OutputPath (string) | Contains QualityDimensions (exactly 6) |
+| **QualityDimension** | A single dimension score within a convergence analysis. One of 6 standard dimensions. | Name (string), Value (int, 0-5) | Belongs to QualityEntry |
+
+### New Supporting Types
+
+| Type | Kind | Values/Structure | Used By |
+|------|------|------------------|---------|
+| **QualityDimensionName** | Constants (string) | `"rigor"`, `"coverage"`, `"actionability"`, `"objectivity"`, `"convergence"`, `"depth"` | QualityDimension |
+
+### New Relationships
+
+```
+QualityEntry 1───6 QualityDimension (exactly 6 per entry)
+```
+
+### New Business Rules
+
+| ID | Rule | Entities | Invariant |
+|----|------|----------|-----------|
+| **BR-36** | A QualityEntry MUST have an overall score in the range 0.0 to 5.0 inclusive. | QualityEntry | `0.0 <= Score <= 5.0` |
+| **BR-37** | A QualityEntry passes Gate 0 when its overall score is >= 3.0. This mirrors the convergence analysis gate requirement. | QualityEntry | `GatePass == (Score >= 3.0)` |
+| **BR-38** | QualityEntry dimension scores MUST each be in the range 0 to 5 inclusive. There are exactly 6 standard dimensions: rigor, coverage, actionability, objectivity, convergence, depth. | QualityDimension | `0 <= Value <= 5` and `len(Dimensions) == 6` |
+
+### Presentation-Layer Types (Not in Domain)
+
+The following types are used by the TUI but belong in the `tui/` package, not `domain/`:
+
+| Type | Kind | Values | Used By |
+|------|------|--------|---------|
+| **TabID** | Enum (int) | `TabStatus` (0), `TabDocs` (1), `TabIterations` (2), `TabChecks` (3), `TabQuality` (4) | TUI app shell |
+| **ViewState** | Enum (int) | `ViewLoading` (0), `ViewError` (1), `ViewEmpty` (2), `ViewReady` (3) | TUI tab models |
+
+These are explicitly excluded from `domain/` per DC-1 (domain purity). They represent presentation concerns (which tab is active, whether data has loaded) not business concepts.
