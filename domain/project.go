@@ -4,12 +4,12 @@ import "time"
 
 // Project represents a Mind Framework project detected on disk.
 type Project struct {
-	Root      string  // Absolute path to project root (where .mind/ lives)
-	Name      string  // From mind.toml [project].name
-	Config    *Config // Parsed mind.toml (nil if file doesn't exist)
-	Framework string  // Framework version from .mind/CHANGELOG.md
-	DocsRoot  string  // Root + "/docs"
-	MindRoot  string  // Root + "/.mind"
+	Root      string  `json:"root"`
+	Name      string  `json:"name"`
+	Config    *Config `json:"-"`
+	Framework string  `json:"framework_version,omitempty"`
+	DocsRoot  string  `json:"-"`
+	MindRoot  string  `json:"-"`
 }
 
 // Config represents the parsed mind.toml manifest.

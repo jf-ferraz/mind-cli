@@ -22,6 +22,7 @@ type CheckContext struct {
 	DocRepo     repo.DocRepo
 	IterRepo    repo.IterationRepo
 	BriefRepo   repo.BriefRepo
+	ConfigRepo  repo.ConfigRepo
 	Strict      bool
 }
 
@@ -41,9 +42,9 @@ func (s *Suite) Run(ctx *CheckContext) domain.ValidationReport {
 	for _, check := range s.Checks {
 		passed, msg := check.Fn(ctx)
 
-		// In strict mode, promote warnings to failures for stub detection
+		// In strict mode, promote all warnings to failures
 		level := check.Level
-		if ctx.Strict && check.ID == 16 && level == domain.LevelWarn {
+		if ctx.Strict && level == domain.LevelWarn {
 			level = domain.LevelFail
 		}
 

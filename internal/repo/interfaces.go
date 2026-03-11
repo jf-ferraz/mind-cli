@@ -45,6 +45,9 @@ type StateRepo interface {
 type ConfigRepo interface {
 	// ReadProjectConfig parses mind.toml.
 	ReadProjectConfig() (*domain.Config, error)
+
+	// WriteProjectConfig writes mind.toml.
+	WriteProjectConfig(cfg *domain.Config) error
 }
 
 // BriefRepo handles project brief parsing and validation.
