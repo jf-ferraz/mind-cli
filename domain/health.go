@@ -9,6 +9,7 @@ type ProjectHealth struct {
 	LastIteration *Iteration          `json:"last_iteration,omitempty"`
 	Warnings      []string            `json:"warnings,omitempty"`
 	Suggestions   []string            `json:"suggestions,omitempty"`
+	Staleness     *StalenessInfo      `json:"staleness"`
 }
 
 // ZoneHealth tracks completeness of a single documentation zone.

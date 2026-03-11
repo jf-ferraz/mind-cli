@@ -19,6 +19,7 @@ type Config struct {
 	Profiles   Profiles                       `toml:"profiles"`
 	Documents  map[string]map[string]DocEntry `toml:"documents"`
 	Governance Governance                     `toml:"governance"`
+	Graph      []GraphEdge                    `toml:"graph"`
 }
 
 // Manifest tracks schema version and update time.
