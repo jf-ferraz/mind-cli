@@ -17,6 +17,7 @@ type DoctorService struct {
 	iterRepo    repo.IterationRepo
 	briefRepo   repo.BriefRepo
 	configRepo  repo.ConfigRepo
+	lockRepo    repo.LockRepo
 }
 
 // NewDoctorService creates a DoctorService.
@@ -26,6 +27,7 @@ func NewDoctorService(
 	iterRepo repo.IterationRepo,
 	briefRepo repo.BriefRepo,
 	configRepo repo.ConfigRepo,
+	lockRepo repo.LockRepo,
 ) *DoctorService {
 	return &DoctorService{
 		projectRoot: projectRoot,
@@ -33,6 +35,7 @@ func NewDoctorService(
 		iterRepo:    iterRepo,
 		briefRepo:   briefRepo,
 		configRepo:  configRepo,
+		lockRepo:    lockRepo,
 	}
 }
 

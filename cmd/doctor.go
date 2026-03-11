@@ -4,9 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/jf-ferraz/mind-cli/internal/render"
-	"github.com/jf-ferraz/mind-cli/internal/repo/fs"
-	"github.com/jf-ferraz/mind-cli/internal/service"
 	"github.com/spf13/cobra"
 )
 
@@ -25,26 +22,9 @@ func init() {
 }
 
 func runDoctor(cmd *cobra.Command, args []string) error {
-	root, err := resolveRoot()
-	if err != nil {
-		if isNotProject(err) {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(3)
-		}
-		return err
-	}
+	report := doctorSvc.Run(flagFix)
 
-	docRepo := fs.NewDocRepo(root)
-	iterRepo := fs.NewIterationRepo(root)
-	briefRepo := fs.NewBriefRepo(docRepo)
-	configRepo := fs.NewConfigRepo(root)
-
-	svc := service.NewDoctorService(root, docRepo, iterRepo, briefRepo, configRepo)
-	report := svc.Run(flagFix)
-
-	mode := render.DetectMode(flagJSON, flagNoColor)
-	r := render.New(mode, render.TermWidth())
-	fmt.Print(r.RenderDoctor(report))
+	fmt.Print(renderer.RenderDoctor(report))
 
 	if report.Summary.Fail > 0 {
 		os.Exit(1)

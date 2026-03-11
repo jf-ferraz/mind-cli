@@ -9,8 +9,6 @@ import (
 
 	"github.com/jf-ferraz/mind-cli/domain"
 	"github.com/jf-ferraz/mind-cli/internal/generate"
-	"github.com/jf-ferraz/mind-cli/internal/render"
-	"github.com/jf-ferraz/mind-cli/internal/service"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -72,17 +70,7 @@ func init() {
 }
 
 func runCreateADR(cmd *cobra.Command, args []string) error {
-	root, err := resolveRoot()
-	if err != nil {
-		if isNotProject(err) {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(3)
-		}
-		return err
-	}
-
-	svc := service.NewGenerateService(root)
-	result, err := svc.CreateADR(args[0])
+	result, err := generateSvc.CreateADR(args[0])
 	if err != nil {
 		if errors.Is(err, domain.ErrAlreadyExists) {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -91,24 +79,12 @@ func runCreateADR(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	mode := render.DetectMode(flagJSON, flagNoColor)
-	r := render.New(mode, render.TermWidth())
-	fmt.Print(r.RenderCreateResult(result))
+	fmt.Print(renderer.RenderCreateResult(result))
 	return nil
 }
 
 func runCreateBlueprint(cmd *cobra.Command, args []string) error {
-	root, err := resolveRoot()
-	if err != nil {
-		if isNotProject(err) {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(3)
-		}
-		return err
-	}
-
-	svc := service.NewGenerateService(root)
-	result, err := svc.CreateBlueprint(args[0])
+	result, err := generateSvc.CreateBlueprint(args[0])
 	if err != nil {
 		if errors.Is(err, domain.ErrAlreadyExists) {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -117,24 +93,12 @@ func runCreateBlueprint(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	mode := render.DetectMode(flagJSON, flagNoColor)
-	r := render.New(mode, render.TermWidth())
-	fmt.Print(r.RenderCreateResult(result))
+	fmt.Print(renderer.RenderCreateResult(result))
 	return nil
 }
 
 func runCreateIteration(cmd *cobra.Command, args []string) error {
-	root, err := resolveRoot()
-	if err != nil {
-		if isNotProject(err) {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(3)
-		}
-		return err
-	}
-
-	svc := service.NewGenerateService(root)
-	result, err := svc.CreateIteration(args[0], args[1])
+	result, err := generateSvc.CreateIteration(args[0], args[1])
 	if err != nil {
 		if errors.Is(err, domain.ErrAlreadyExists) {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -145,24 +109,12 @@ func runCreateIteration(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	mode := render.DetectMode(flagJSON, flagNoColor)
-	r := render.New(mode, render.TermWidth())
-	fmt.Print(r.RenderCreateIterationResult(result))
+	fmt.Print(renderer.RenderCreateIterationResult(result))
 	return nil
 }
 
 func runCreateSpike(cmd *cobra.Command, args []string) error {
-	root, err := resolveRoot()
-	if err != nil {
-		if isNotProject(err) {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(3)
-		}
-		return err
-	}
-
-	svc := service.NewGenerateService(root)
-	result, err := svc.CreateSpike(args[0])
+	result, err := generateSvc.CreateSpike(args[0])
 	if err != nil {
 		if errors.Is(err, domain.ErrAlreadyExists) {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -171,24 +123,12 @@ func runCreateSpike(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	mode := render.DetectMode(flagJSON, flagNoColor)
-	r := render.New(mode, render.TermWidth())
-	fmt.Print(r.RenderCreateResult(result))
+	fmt.Print(renderer.RenderCreateResult(result))
 	return nil
 }
 
 func runCreateConvergence(cmd *cobra.Command, args []string) error {
-	root, err := resolveRoot()
-	if err != nil {
-		if isNotProject(err) {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(3)
-		}
-		return err
-	}
-
-	svc := service.NewGenerateService(root)
-	result, err := svc.CreateConvergence(args[0])
+	result, err := generateSvc.CreateConvergence(args[0])
 	if err != nil {
 		if errors.Is(err, domain.ErrAlreadyExists) {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -197,22 +137,11 @@ func runCreateConvergence(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	mode := render.DetectMode(flagJSON, flagNoColor)
-	r := render.New(mode, render.TermWidth())
-	fmt.Print(r.RenderCreateResult(result))
+	fmt.Print(renderer.RenderCreateResult(result))
 	return nil
 }
 
 func runCreateBrief(cmd *cobra.Command, args []string) error {
-	root, err := resolveRoot()
-	if err != nil {
-		if isNotProject(err) {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(3)
-		}
-		return err
-	}
-
 	if flagJSON {
 		fmt.Fprintln(os.Stderr, "Error: 'mind create brief' is interactive-only (--json not supported)")
 		os.Exit(1)
@@ -228,7 +157,7 @@ func runCreateBrief(cmd *cobra.Command, args []string) error {
 	reader := bufio.NewReader(os.Stdin)
 
 	fmt.Println("Create Project Brief")
-	fmt.Println(strings.Repeat("─", 40))
+	fmt.Println(strings.Repeat("-", 40))
 	fmt.Println()
 
 	vision := promptMultiline(reader, "Vision (describe the project vision, empty line to finish):")
@@ -238,9 +167,9 @@ func runCreateBrief(cmd *cobra.Command, args []string) error {
 	constraints := promptMultiline(reader, "Constraints (list constraints, empty line to finish):")
 
 	content := generate.BriefTemplate(vision, deliverables, inScope, outScope, constraints)
-	briefPath := fmt.Sprintf("%s/docs/spec/project-brief.md", root)
+	briefPath := fmt.Sprintf("%s/docs/spec/project-brief.md", projectRoot)
 
-	if err := os.MkdirAll(fmt.Sprintf("%s/docs/spec", root), 0755); err != nil {
+	if err := os.MkdirAll(fmt.Sprintf("%s/docs/spec", projectRoot), 0755); err != nil {
 		return fmt.Errorf("create spec dir: %w", err)
 	}
 

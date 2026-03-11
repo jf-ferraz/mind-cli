@@ -4,9 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/jf-ferraz/mind-cli/internal/render"
-	"github.com/jf-ferraz/mind-cli/internal/repo/fs"
-	"github.com/jf-ferraz/mind-cli/internal/service"
 	"github.com/spf13/cobra"
 )
 
@@ -56,26 +53,9 @@ func init() {
 }
 
 func runCheckDocs(cmd *cobra.Command, args []string) error {
-	root, err := resolveRoot()
-	if err != nil {
-		if isNotProject(err) {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(3)
-		}
-		return err
-	}
+	report := validationSvc.RunDocs(projectRoot, flagStrict)
 
-	docRepo := fs.NewDocRepo(root)
-	iterRepo := fs.NewIterationRepo(root)
-	briefRepo := fs.NewBriefRepo(docRepo)
-	configRepo := fs.NewConfigRepo(root)
-
-	svc := service.NewValidationService(docRepo, iterRepo, briefRepo, configRepo)
-	report := svc.RunDocs(root, flagStrict)
-
-	mode := render.DetectMode(flagJSON, flagNoColor)
-	r := render.New(mode, render.TermWidth())
-	fmt.Print(r.RenderValidation(&report))
+	fmt.Print(renderer.RenderValidation(&report))
 
 	if !report.Ok() {
 		os.Exit(1)
@@ -84,26 +64,9 @@ func runCheckDocs(cmd *cobra.Command, args []string) error {
 }
 
 func runCheckRefs(cmd *cobra.Command, args []string) error {
-	root, err := resolveRoot()
-	if err != nil {
-		if isNotProject(err) {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(3)
-		}
-		return err
-	}
+	report := validationSvc.RunRefs(projectRoot)
 
-	docRepo := fs.NewDocRepo(root)
-	iterRepo := fs.NewIterationRepo(root)
-	briefRepo := fs.NewBriefRepo(docRepo)
-	configRepo := fs.NewConfigRepo(root)
-
-	svc := service.NewValidationService(docRepo, iterRepo, briefRepo, configRepo)
-	report := svc.RunRefs(root)
-
-	mode := render.DetectMode(flagJSON, flagNoColor)
-	r := render.New(mode, render.TermWidth())
-	fmt.Print(r.RenderValidation(&report))
+	fmt.Print(renderer.RenderValidation(&report))
 
 	if !report.Ok() {
 		os.Exit(1)
@@ -112,26 +75,9 @@ func runCheckRefs(cmd *cobra.Command, args []string) error {
 }
 
 func runCheckConfig(cmd *cobra.Command, args []string) error {
-	root, err := resolveRoot()
-	if err != nil {
-		if isNotProject(err) {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(3)
-		}
-		return err
-	}
+	report := validationSvc.RunConfig(projectRoot)
 
-	docRepo := fs.NewDocRepo(root)
-	iterRepo := fs.NewIterationRepo(root)
-	briefRepo := fs.NewBriefRepo(docRepo)
-	configRepo := fs.NewConfigRepo(root)
-
-	svc := service.NewValidationService(docRepo, iterRepo, briefRepo, configRepo)
-	report := svc.RunConfig(root)
-
-	mode := render.DetectMode(flagJSON, flagNoColor)
-	r := render.New(mode, render.TermWidth())
-	fmt.Print(r.RenderValidation(&report))
+	fmt.Print(renderer.RenderValidation(&report))
 
 	if !report.Ok() {
 		os.Exit(1)
@@ -140,26 +86,9 @@ func runCheckConfig(cmd *cobra.Command, args []string) error {
 }
 
 func runCheckAll(cmd *cobra.Command, args []string) error {
-	root, err := resolveRoot()
-	if err != nil {
-		if isNotProject(err) {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(3)
-		}
-		return err
-	}
+	report := validationSvc.RunAll(projectRoot, flagStrict)
 
-	docRepo := fs.NewDocRepo(root)
-	iterRepo := fs.NewIterationRepo(root)
-	briefRepo := fs.NewBriefRepo(docRepo)
-	configRepo := fs.NewConfigRepo(root)
-
-	svc := service.NewValidationService(docRepo, iterRepo, briefRepo, configRepo)
-	report := svc.RunAll(root, flagStrict)
-
-	mode := render.DetectMode(flagJSON, flagNoColor)
-	r := render.New(mode, render.TermWidth())
-	fmt.Print(r.RenderUnifiedValidation(&report))
+	fmt.Print(renderer.RenderUnifiedValidation(&report))
 
 	if report.Summary.Failed > 0 {
 		os.Exit(1)

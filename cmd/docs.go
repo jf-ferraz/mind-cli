@@ -10,8 +10,6 @@ import (
 	"strings"
 
 	"github.com/jf-ferraz/mind-cli/domain"
-	"github.com/jf-ferraz/mind-cli/internal/render"
-	"github.com/jf-ferraz/mind-cli/internal/repo/fs"
 	"github.com/spf13/cobra"
 )
 
@@ -66,17 +64,6 @@ func init() {
 }
 
 func runDocsList(cmd *cobra.Command, args []string) error {
-	root, err := resolveRoot()
-	if err != nil {
-		if isNotProject(err) {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(3)
-		}
-		return err
-	}
-
-	docRepo := fs.NewDocRepo(root)
-
 	// Validate zone flag if provided
 	if flagZone != "" && !domain.ValidZone(flagZone) {
 		fmt.Fprintf(os.Stderr, "Error: invalid zone %q. Valid zones: %s\n",
@@ -116,45 +103,21 @@ func runDocsList(cmd *cobra.Command, args []string) error {
 		Total:     total,
 	}
 
-	mode := render.DetectMode(flagJSON, flagNoColor)
-	r := render.New(mode, render.TermWidth())
-	fmt.Print(r.RenderDocumentList(list))
+	fmt.Print(renderer.RenderDocumentList(list))
 	return nil
 }
 
 func runDocsTree(cmd *cobra.Command, args []string) error {
-	root, err := resolveRoot()
-	if err != nil {
-		if isNotProject(err) {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(3)
-		}
-		return err
-	}
-
-	docRepo := fs.NewDocRepo(root)
 	docs, err := docRepo.ListAll()
 	if err != nil {
 		return fmt.Errorf("list docs: %w", err)
 	}
 
-	mode := render.DetectMode(flagJSON, flagNoColor)
-	r := render.New(mode, render.TermWidth())
-	fmt.Print(r.RenderDocTree(docs))
+	fmt.Print(renderer.RenderDocTree(docs))
 	return nil
 }
 
 func runDocsStubs(cmd *cobra.Command, args []string) error {
-	root, err := resolveRoot()
-	if err != nil {
-		if isNotProject(err) {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(3)
-		}
-		return err
-	}
-
-	docRepo := fs.NewDocRepo(root)
 	docs, err := docRepo.ListAll()
 	if err != nil {
 		return fmt.Errorf("list docs: %w", err)
@@ -172,9 +135,7 @@ func runDocsStubs(cmd *cobra.Command, args []string) error {
 	}
 	list.Count = len(list.Stubs)
 
-	mode := render.DetectMode(flagJSON, flagNoColor)
-	r := render.New(mode, render.TermWidth())
-	fmt.Print(r.RenderStubList(list))
+	fmt.Print(renderer.RenderStubList(list))
 
 	if list.Count > 0 {
 		os.Exit(1)
@@ -183,20 +144,11 @@ func runDocsStubs(cmd *cobra.Command, args []string) error {
 }
 
 func runDocsSearch(cmd *cobra.Command, args []string) error {
-	root, err := resolveRoot()
-	if err != nil {
-		if isNotProject(err) {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(3)
-		}
-		return err
-	}
-
 	query := strings.ToLower(args[0])
 	results := &domain.SearchResults{Query: args[0]}
 
-	docsDir := filepath.Join(root, "docs")
-	err = filepath.WalkDir(docsDir, func(path string, d os.DirEntry, walkErr error) error {
+	docsDir := filepath.Join(projectRoot, "docs")
+	err := filepath.WalkDir(docsDir, func(path string, d os.DirEntry, walkErr error) error {
 		if walkErr != nil || d.IsDir() {
 			return walkErr
 		}
@@ -210,7 +162,7 @@ func runDocsSearch(cmd *cobra.Command, args []string) error {
 		}
 		defer f.Close()
 
-		relPath, _ := filepath.Rel(root, path)
+		relPath, _ := filepath.Rel(projectRoot, path)
 		var matches []domain.SearchMatch
 		var lines []string
 
@@ -250,27 +202,16 @@ func runDocsSearch(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("search docs: %w", err)
 	}
 
-	mode := render.DetectMode(flagJSON, flagNoColor)
-	r := render.New(mode, render.TermWidth())
-	fmt.Print(r.RenderSearchResults(results))
+	fmt.Print(renderer.RenderSearchResults(results))
 	return nil
 }
 
 func runDocsOpen(cmd *cobra.Command, args []string) error {
-	root, err := resolveRoot()
-	if err != nil {
-		if isNotProject(err) {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(3)
-		}
-		return err
-	}
-
 	query := args[0]
 
 	// Try direct path first
-	if _, err := os.Stat(filepath.Join(root, query)); err == nil {
-		return openInEditor(root, query)
+	if _, err := os.Stat(filepath.Join(projectRoot, query)); err == nil {
+		return openInEditor(projectRoot, query)
 	}
 
 	// Try doc:zone/name format
@@ -278,14 +219,13 @@ func runDocsOpen(cmd *cobra.Command, args []string) error {
 		parts := strings.SplitN(query[4:], "/", 2)
 		if len(parts) == 2 {
 			zonePath := filepath.Join("docs", parts[0], parts[1]+".md")
-			if _, err := os.Stat(filepath.Join(root, zonePath)); err == nil {
-				return openInEditor(root, zonePath)
+			if _, err := os.Stat(filepath.Join(projectRoot, zonePath)); err == nil {
+				return openInEditor(projectRoot, zonePath)
 			}
 		}
 	}
 
 	// Fuzzy match
-	docRepo := fs.NewDocRepo(root)
 	docs, err := docRepo.ListAll()
 	if err != nil {
 		return fmt.Errorf("list docs: %w", err)
@@ -316,7 +256,7 @@ func runDocsOpen(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	return openInEditor(root, matches[0].Path)
+	return openInEditor(projectRoot, matches[0].Path)
 }
 
 func openInEditor(root, relPath string) error {

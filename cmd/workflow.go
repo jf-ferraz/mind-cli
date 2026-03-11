@@ -2,11 +2,7 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
-	"github.com/jf-ferraz/mind-cli/internal/render"
-	"github.com/jf-ferraz/mind-cli/internal/repo/fs"
-	"github.com/jf-ferraz/mind-cli/internal/service"
 	"github.com/spf13/cobra"
 )
 
@@ -34,51 +30,21 @@ func init() {
 }
 
 func runWorkflowStatus(cmd *cobra.Command, args []string) error {
-	root, err := resolveRoot()
-	if err != nil {
-		if isNotProject(err) {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(3)
-		}
-		return err
-	}
-
-	stateRepo := fs.NewStateRepo(root)
-	iterRepo := fs.NewIterationRepo(root)
-
-	svc := service.NewWorkflowService(stateRepo, iterRepo)
-	ws, err := svc.Status()
+	ws, err := workflowSvc.Status()
 	if err != nil {
 		return fmt.Errorf("read workflow state: %w", err)
 	}
 
-	mode := render.DetectMode(flagJSON, flagNoColor)
-	r := render.New(mode, render.TermWidth())
-	fmt.Print(r.RenderWorkflowStatus(ws))
+	fmt.Print(renderer.RenderWorkflowStatus(ws))
 	return nil
 }
 
 func runWorkflowHistory(cmd *cobra.Command, args []string) error {
-	root, err := resolveRoot()
-	if err != nil {
-		if isNotProject(err) {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(3)
-		}
-		return err
-	}
-
-	stateRepo := fs.NewStateRepo(root)
-	iterRepo := fs.NewIterationRepo(root)
-
-	svc := service.NewWorkflowService(stateRepo, iterRepo)
-	history, err := svc.History()
+	history, err := workflowSvc.History()
 	if err != nil {
 		return fmt.Errorf("list iterations: %w", err)
 	}
 
-	mode := render.DetectMode(flagJSON, flagNoColor)
-	r := render.New(mode, render.TermWidth())
-	fmt.Print(r.RenderWorkflowHistory(history))
+	fmt.Print(renderer.RenderWorkflowHistory(history))
 	return nil
 }
