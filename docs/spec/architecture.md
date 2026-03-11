@@ -294,3 +294,110 @@ WorkflowState is read-only in Phase 1 (state transitions are Phase 3).
 | New render shape | `internal/render/` | Add `Render*()` method for new domain output type |
 | New output mode | `internal/render/` | Extend `OutputMode` enum (e.g., for TUI rendering in Phase 2) |
 | MCP tool | `mcp/` (Phase 3) | New package consuming same services as `cmd/`, exposing via JSON-RPC |
+
+---
+
+## Phase 1.5: Reconciliation Engine
+
+Phase 1.5 adds hash-based content tracking with staleness propagation through a dependency graph. This section documents the architectural extensions. For full design rationale, see [architecture-delta.md](../iterations/002-reconciliation-engine/architecture-delta.md).
+
+### Phase 1.5 Packages
+
+| Component | Package | Responsibility | Dependencies |
+|-----------|---------|----------------|-------------|
+| Reconcile domain types | `domain/reconcile.go` | `LockFile`, `LockEntry`, `ReconcileResult`, `GraphEdge`, `EdgeType`, `Graph`, `LockStatus`, `EntryStatus`, `LockStats`, `ReconcileOpts`, `StalenessInfo`, `BuildGraph()` | Go stdlib only |
+| Hash computation | `internal/reconcile/hash.go` | SHA-256 of raw file bytes, mtime fast-path, edge case handling (empty, binary, symlinks, large, unreadable) | `domain`, `os`, `crypto/sha256`, `io` |
+| Graph operations | `internal/reconcile/graph.go` | Cycle detection (DFS), edge validation against document registry | `domain` |
+| Staleness propagation | `internal/reconcile/propagate.go` | BFS downstream propagation with depth limit 10, edge-type-specific reason messages | `domain` |
+| Engine orchestration | `internal/reconcile/engine.go` | 6-phase reconciliation: load, graph, scan, detect undeclared, propagate, report | `domain`, `internal/reconcile/*`, `internal/repo` (DocRepo) |
+| Lock repository (fs) | `internal/repo/fs/lock_repo.go` | Read/write `mind.lock` as JSON with atomic writes (temp + rename) | `domain`, `os`, `encoding/json` |
+| Lock repository (mem) | `internal/repo/mem/lock_repo.go` | In-memory `LockRepo` for testing | `domain` |
+| Reconciliation service | `internal/service/reconciliation.go` | `ReconciliationService`: orchestrate config loading, lock I/O, engine execution | `domain`, `internal/reconcile`, `internal/repo` |
+| Reconcile suite | `internal/validate/reconcile.go` | `ReconcileSuite()`: project reconciliation results into check framework for `mind check all` | `domain`, `internal/validate` |
+| Reconcile command | `cmd/reconcile.go` | `mind reconcile` with `--check`, `--force`, `--graph` flags | `domain`, `internal/service`, `internal/render` |
+
+### Updated Dependency Matrix (Phase 1.5 additions)
+
+```
+cmd/reconcile.go ──────> internal/service/reconciliation
+cmd/reconcile.go ──────> internal/render
+cmd/reconcile.go ──────> domain
+
+cmd/status.go ─────────> internal/service/reconciliation (ReadStaleness)
+cmd/check.go ──────────> internal/service/validation (extended with reconcile)
+cmd/doctor.go ─────────> internal/service/doctor (extended with staleness)
+
+internal/service/reconciliation ──> internal/reconcile/engine
+internal/service/reconciliation ──> internal/repo (ConfigRepo, DocRepo, LockRepo)
+internal/service/reconciliation ──> domain
+
+internal/service/validation ──────> internal/validate/reconcile (ReconcileSuite)
+
+internal/reconcile/engine ────────> internal/reconcile/hash
+internal/reconcile/engine ────────> internal/reconcile/graph
+internal/reconcile/engine ────────> internal/reconcile/propagate
+internal/reconcile/engine ────────> internal/repo (DocRepo interface)
+internal/reconcile/engine ────────> domain
+
+internal/reconcile/hash ──────────> domain
+internal/reconcile/hash ──────────> os, crypto/sha256, io (direct I/O)
+
+internal/reconcile/graph ─────────> domain
+internal/reconcile/propagate ─────> domain
+
+internal/validate/reconcile ──────> domain
+
+internal/repo/fs/lock_repo ──────> domain
+internal/repo/mem/lock_repo ─────> domain
+
+domain/reconcile.go ──────────────> Go stdlib only
+```
+
+### Extension Points Activated by Phase 1.5
+
+| Extension Point | How It Was Used |
+|----------------|----------------|
+| New validation suite | `ReconcileSuite()` added in `internal/validate/reconcile.go`, following the `DocsSuite()` pattern |
+| New repository | `LockRepo` interface added to `interfaces.go`, with `fs/lock_repo.go` and `mem/lock_repo.go` implementations |
+| New service | `ReconciliationService` added in `internal/service/reconciliation.go` with constructor injection |
+| New command | `cmd/reconcile.go` added with thin-handler pattern, wired to `ReconciliationService` |
+| New render shape | `RenderReconcileResult()` and `RenderGraph()` added to `Renderer` |
+
+### Phase 1.5 Key Decisions
+
+#### Decision: hash.go Performs Direct Filesystem I/O
+
+- **Choice**: `internal/reconcile/hash.go` uses `os.Open()` directly to stream file content through SHA-256. It does not use `DocRepo.Read()`.
+- **Rationale**: Hash computation requires streaming I/O (constant memory) rather than loading entire file contents into memory. The existing `DocRepo.Read()` returns `[]byte`, which would require loading the full file. For files up to 10MB, this is wasteful. Streaming uses O(1) memory regardless of file size.
+- **Rejected alternatives**:
+  - **Add `DocRepo.OpenReader()` streaming interface**: Over-engineering for a single consumer. Rejected.
+  - **Use `DocRepo.Read()` then hash the bytes**: Defeats streaming purpose, wastes memory. Rejected.
+- **Consequences**: `internal/reconcile/hash.go` imports `os` and `io`. This is acceptable because `internal/reconcile/` is a service-layer package, not the domain layer. The hash function accepts an absolute path as a parameter, making it a testable utility.
+
+#### Decision: Exit Code 4 for Staleness Detection
+
+- **Choice**: Add exit code 4 to represent staleness, used exclusively by `mind reconcile --check`.
+- **Rationale**: Staleness is semantically distinct from validation failure (exit 1), runtime error (exit 2), and configuration error (exit 3). CI pipelines need to differentiate "documentation has validation errors" from "documentation is out of date relative to dependencies." The existing exit code 1 means "something failed structurally"; exit code 4 means "everything is structurally sound but temporally stale."
+- **Rejected alternatives**:
+  - **Reuse exit code 1**: Loses the semantic distinction between "broken" and "stale." CI pipelines cannot differentiate. Rejected.
+  - **Use exit code 5+**: No benefit over 4. The next available code is 4. Rejected for simplicity.
+- **Consequences**: Exit code documentation is extended. The exit code helper in `cmd/` must handle the new code. Only `mind reconcile --check` returns exit 4; no other command uses it.
+
+#### Decision: Centralized Wiring via PersistentPreRunE
+
+- **Choice**: Centralize repository and service construction in `rootCmd.PersistentPreRunE` during Phase 1.5.
+- **Rationale**: Phase 1.5 adds 4 integration points (reconcile, status, check, doctor) that all need `LockRepo` and `ReconciliationService`. The current Phase 1 pattern of creating repos in each command handler would duplicate wiring in 4+ places. Centralizing during Phase 1.5 is the cheapest point because those files are already being modified.
+- **Rejected alternatives**:
+  - **Keep per-handler wiring**: More duplication, harder to maintain. Rejected.
+  - **Fix wiring before Phase 1.5**: Separate refactoring iteration touching the same files. Merge conflict risk. Rejected.
+  - **Defer past Phase 1.5**: Every new integration point repeats the anti-pattern. Rejected.
+- **Consequences**: `cmd/root.go` gains ~40 lines of wiring code. All existing command handlers are simplified by removing inline repo construction. Commands that do not require a project use a guard annotation to skip wiring.
+
+#### Decision: ReconcileSuite Takes Pre-computed Result
+
+- **Choice**: `ReconcileSuite(result *ReconcileResult)` takes a pre-computed result rather than running reconciliation internally.
+- **Rationale**: Reconciliation is expensive (file I/O, hashing). The result is needed by the command handler (for exit code determination), the renderer (for output), and the suite (for check projection). Computing it once and sharing is more efficient than running it inside the suite.
+- **Rejected alternatives**:
+  - **Suite runs reconciliation internally**: Would cause redundant I/O. The command handler also needs the result. Rejected.
+  - **Dedicated reconciliation panel (not suite)**: Would break the established check framework pattern and require special-case rendering. Rejected.
+- **Consequences**: `ReconcileSuite()` has a different signature from other suite constructors. `ValidationService.RunAll()` must receive or compute the reconcile result before calling the suite.

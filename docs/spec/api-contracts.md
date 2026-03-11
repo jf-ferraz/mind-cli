@@ -738,3 +738,254 @@ Pattern: `docs/blueprints/{NN}-{slug}.md`
 - `{NN}`: 2+ digit zero-padded (01, 02, ..., 99)
 - Sequence: max(existing blueprint numbers) + 1
 - Side effect: entry appended to `docs/blueprints/INDEX.md`
+
+---
+
+## Phase 1.5: Reconciliation Engine Contracts
+
+### 6. `mind reconcile` Command Interface
+
+#### 6.1 `mind reconcile`
+
+| Property | Value |
+|----------|-------|
+| Synopsis | `mind reconcile [flags]` |
+| Arguments | None |
+| Flags | `--check` (bool), `--force` (bool), `--graph` (bool) |
+| Requires project | Yes |
+| Requires mind.toml | Yes (with `[documents]` section) |
+| JSON output | `ReconcileResult` object |
+| Exit codes | 0 (clean), 2 (cycle / runtime error), 3 (no config / not a project), 4 (stale, `--check` only) |
+
+| Flag | Short | Type | Default | Description |
+|------|-------|------|---------|-------------|
+| `--check` | | bool | `false` | Verify without writing mind.lock. Exit 0 if clean, exit 4 if stale. |
+| `--force` | | bool | `false` | Discard existing mind.lock, re-hash everything, clear all staleness. |
+| `--graph` | | bool | `false` | Output ASCII tree visualization of the dependency graph. |
+
+**Behavior**: Parse `mind.toml` for `[documents]` and `[[graph]]`. If `--force`: discard existing lock. Load or create lock file. Build dependency graph. Detect cycles (abort with exit 2 if found). Scan declared documents (mtime fast-path, hash changed files). Detect undeclared files. Propagate staleness downstream. If not `--check`: write updated `mind.lock` atomically. Report results.
+
+**Flag interactions**: `--check` and `--force` are mutually exclusive (error if both set). `--graph` can be combined with any other flag but short-circuits after graph rendering (no reconciliation performed).
+
+### 7. Phase 1.5 JSON Output Schemas
+
+#### 7.1 ReconcileResult (`mind reconcile --json`)
+
+```json
+{
+  "changed": ["string (document ID)"],
+  "stale": {
+    "<document_id>": "string (reason)"
+  },
+  "missing": ["string (document ID)"],
+  "undeclared": ["string (relative path)"],
+  "status": "CLEAN | STALE | DIRTY",
+  "stats": {
+    "total": "int",
+    "changed": "int",
+    "stale": "int",
+    "missing": "int",
+    "undeclared": "int",
+    "clean": "int"
+  }
+}
+```
+
+**Notes**:
+- `changed` lists document IDs whose content hash differs from the lock file.
+- `stale` is a map of document IDs to reason strings. Empty map when no staleness.
+- `missing` lists document IDs declared in `mind.toml` but not found on disk.
+- `undeclared` lists relative paths of files in `docs/` not declared in `mind.toml`.
+- `status` follows priority: STALE (any stale) > DIRTY (any missing, no stale) > CLEAN.
+- `stats.clean` = total - changed - stale - missing.
+
+#### 7.2 StalenessInfo (in `mind status --json`)
+
+The `ProjectHealth` JSON output gains a `staleness` field:
+
+```json
+{
+  "project": { "..." },
+  "brief": { "..." },
+  "zones": { "..." },
+  "workflow": "...",
+  "last_iteration": "...",
+  "warnings": ["..."],
+  "suggestions": ["..."],
+  "staleness": {
+    "status": "CLEAN | STALE | DIRTY",
+    "stale": {
+      "<document_id>": "string (reason)"
+    },
+    "stats": {
+      "total": "int",
+      "changed": "int",
+      "stale": "int",
+      "missing": "int",
+      "undeclared": "int",
+      "clean": "int"
+    }
+  }
+}
+```
+
+**Notes**:
+- `staleness` is `null` when `mind.lock` does not exist.
+- `staleness` is an object when `mind.lock` exists, even if status is CLEAN.
+- `mind status` does NOT trigger reconciliation. It reads existing lock data only.
+
+#### 7.3 ReconcileSuite (in `mind check all --json`)
+
+The `UnifiedValidationReport` gains a "reconcile" entry in the `suites` array:
+
+```json
+{
+  "suites": [
+    { "name": "docs", "..." },
+    { "name": "refs", "..." },
+    { "name": "config", "..." },
+    {
+      "name": "reconcile",
+      "total": "int",
+      "passed": "int",
+      "failed": "int",
+      "warnings": "int",
+      "checks": [
+        {
+          "id": 1,
+          "name": "No circular dependencies",
+          "level": "FAIL",
+          "passed": "bool",
+          "message": "string (cycle path if failed)"
+        },
+        {
+          "id": 2,
+          "name": "No missing documents",
+          "level": "WARN",
+          "passed": "bool",
+          "message": "string (missing doc IDs if failed)"
+        },
+        {
+          "id": "3+",
+          "name": "Document not stale: <doc_id>",
+          "level": "WARN (FAIL with --strict)",
+          "passed": "bool",
+          "message": "string (stale reason if failed)"
+        }
+      ]
+    }
+  ],
+  "summary": { "..." }
+}
+```
+
+**Notes**:
+- The reconcile suite is always included when `mind.toml` has a `[documents]` section.
+- When no `[[graph]]` entries exist, only checks 1 and 2 appear (no stale checks possible without a graph).
+- Check numbering within the reconcile suite starts at 1. These IDs are local to the suite, not global.
+
+### 8. Phase 1.5 File Format Contracts
+
+#### 8.1 `mind.lock` JSON Schema
+
+Location: `mind.lock` in the project root directory.
+
+```json
+{
+  "generated_at": "string (RFC 3339 timestamp)",
+  "status": "CLEAN | STALE | DIRTY",
+  "stats": {
+    "total": "int",
+    "changed": "int",
+    "stale": "int",
+    "missing": "int",
+    "undeclared": "int",
+    "clean": "int"
+  },
+  "entries": {
+    "<document_id>": {
+      "id": "string (document ID, e.g. doc:spec/requirements)",
+      "path": "string (relative path, e.g. docs/spec/requirements.md)",
+      "hash": "string (sha256:{64-char hex} or empty if missing)",
+      "size": "int (bytes, 0 if missing)",
+      "mod_time": "string (RFC 3339 timestamp, zero value if missing)",
+      "stale": "bool",
+      "stale_reason": "string (empty if not stale)",
+      "is_stub": "bool",
+      "status": "PRESENT | MISSING | CHANGED | UNCHANGED"
+    }
+  }
+}
+```
+
+**Field semantics**:
+- `generated_at`: Timestamp of the last reconciliation run (UTC).
+- `status`: Overall project staleness status. STALE > DIRTY > CLEAN priority.
+- `stats`: Aggregate counts. `total` = number of documents in `mind.toml [documents]`.
+- `entries`: Map keyed by document ID. One entry per document in `mind.toml [documents]`.
+
+**Entry field semantics**:
+- `id`: Document ID as declared in `mind.toml` (e.g., `doc:spec/requirements`).
+- `path`: Relative path from project root (e.g., `docs/spec/requirements.md`).
+- `hash`: SHA-256 hash of raw file content in format `sha256:{hex}`. Empty string if status is MISSING.
+- `size`: File size in bytes at last reconciliation. 0 if MISSING.
+- `mod_time`: File modification time at last reconciliation. Zero value if MISSING.
+- `stale`: `true` if a dependency changed and this document may be outdated.
+- `stale_reason`: Human-readable reason string (e.g., "dependency changed: doc:spec/requirements"). Empty when not stale.
+- `is_stub`: `true` if the document was classified as a stub at reconciliation time. Computed via `DocRepo.IsStub()`.
+- `status`: Entry status from the most recent reconciliation run.
+
+**Round-trip guarantee**: Reading, parsing, and writing `mind.lock` without changes produces byte-identical output. This is ensured by deterministic JSON serialization: entries are serialized in sorted key order, timestamps use consistent RFC 3339 formatting, and `json.MarshalIndent` with 2-space indentation is used.
+
+**Atomic writes**: `mind.lock` is always written via a temp file (`mind.lock.tmp`) followed by `os.Rename()`. At no point does a partially-written `mind.lock` exist on disk.
+
+#### 8.2 `mind.toml` `[[graph]]` Section
+
+Extension to the existing `mind.toml` schema. The `[[graph]]` section is an array-of-tables declaring document dependencies.
+
+```toml
+[[graph]]
+from = "doc:spec/project-brief"
+to   = "doc:spec/requirements"
+type = "informs"
+
+[[graph]]
+from = "doc:spec/requirements"
+to   = "doc:spec/architecture"
+type = "informs"
+
+[[graph]]
+from = "doc:spec/architecture"
+to   = "doc:spec/domain-model"
+type = "requires"
+```
+
+| Field | Type | Required | Validation Rule |
+|-------|------|----------|----------------|
+| `from` | string | Yes | Must match `^doc:[a-z]+/[a-z][a-z0-9-]*$` and exist in `[documents]` |
+| `to` | string | Yes | Must match `^doc:[a-z]+/[a-z][a-z0-9-]*$` and exist in `[documents]` |
+| `type` | string | Yes | Must be one of: `informs`, `requires`, `validates` |
+
+**Edge type semantics**:
+- `informs`: Upstream content informs downstream. Change produces "may be outdated" reason.
+- `requires`: Upstream is a prerequisite. Change produces "prerequisite changed" reason.
+- `validates`: Upstream validates downstream correctness. Change produces "needs re-validation" reason.
+
+**Validation**: `mind check config` validates `[[graph]]` entries. Invalid document ID format or unknown edge type produces a FAIL-level check result. Document IDs referencing documents not declared in `[documents]` produce an error during reconciliation (not during config validation, because config validation does not cross-reference sections).
+
+**When absent**: If `mind.toml` has no `[[graph]]` entries, reconciliation tracks documents (hashes, existence, mtime) without staleness propagation. This is a valid configuration.
+
+### 9. Phase 1.5 Exit Codes
+
+| Code | Meaning | Used By | Example |
+|------|---------|---------|---------|
+| 0 | Success | All commands | Reconciliation clean, checks pass |
+| 1 | Validation failure / issues found | `check *`, `doctor`, `docs stubs` | FAIL-level check did not pass |
+| 2 | Runtime error | `init`, `reconcile` (cycle) | Circular dependency detected, I/O failure |
+| 3 | Configuration error / not a project | All project-requiring commands, `reconcile` | No mind.toml, no [documents] section |
+| **4** | **Staleness detected** | **`reconcile --check` only** | **Documents are stale relative to dependencies** |
+
+**Rules**:
+- Exit code 4 is used exclusively by `mind reconcile --check`. No other command returns 4.
+- `mind check all` with stale documents returns 0 (stale = WARN) or 1 (stale = FAIL with `--strict`), never 4.
+- Exit code 4 indicates "structurally sound but temporally stale" -- a semantic distinction from "validation failure" (exit 1).
