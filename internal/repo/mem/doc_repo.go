@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/jf-ferraz/mind-cli/internal/repo/fs"
 	"github.com/jf-ferraz/mind-cli/domain"
+	"github.com/jf-ferraz/mind-cli/internal/repo/fs"
 )
 
 // DocRepo is an in-memory implementation of repo.DocRepo for testing.

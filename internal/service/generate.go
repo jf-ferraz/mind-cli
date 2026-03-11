@@ -138,11 +138,11 @@ func (s *GenerateService) CreateIteration(typeName string, name string) (*domain
 	}
 
 	templates := map[string]string{
-		"overview.md":       generate.IterationOverviewTemplate(slug, string(reqType)),
-		"changes.md":        generate.IterationChangesTemplate(),
-		"test-summary.md":   generate.IterationTestSummaryTemplate(),
-		"validation.md":     generate.IterationValidationTemplate(),
-		"retrospective.md":  generate.IterationRetrospectiveTemplate(),
+		"overview.md":      generate.IterationOverviewTemplate(slug, string(reqType)),
+		"changes.md":       generate.IterationChangesTemplate(),
+		"test-summary.md":  generate.IterationTestSummaryTemplate(),
+		"validation.md":    generate.IterationValidationTemplate(),
+		"retrospective.md": generate.IterationRetrospectiveTemplate(),
 	}
 
 	var files []string

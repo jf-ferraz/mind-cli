@@ -14,19 +14,19 @@ type Project struct {
 
 // Config represents the parsed mind.toml manifest.
 type Config struct {
-	Manifest   Manifest            `toml:"manifest"`
-	Project    ProjectMeta         `toml:"project"`
-	Profiles   Profiles            `toml:"profiles"`
+	Manifest   Manifest                       `toml:"manifest"`
+	Project    ProjectMeta                    `toml:"project"`
+	Profiles   Profiles                       `toml:"profiles"`
 	Documents  map[string]map[string]DocEntry `toml:"documents"`
-	Governance Governance          `toml:"governance"`
+	Governance Governance                     `toml:"governance"`
 }
 
 // Manifest tracks schema version and update time.
 type Manifest struct {
-	Schema     string            `toml:"schema"`
-	Generation int               `toml:"generation"`
-	Updated    time.Time         `toml:"updated"`
-	Invariants map[string]bool   `toml:"invariants"`
+	Schema     string          `toml:"schema"`
+	Generation int             `toml:"generation"`
+	Updated    time.Time       `toml:"updated"`
+	Invariants map[string]bool `toml:"invariants"`
 }
 
 // ProjectMeta holds project-level metadata.

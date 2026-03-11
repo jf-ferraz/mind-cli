@@ -34,9 +34,9 @@ type Diagnostic struct {
 
 // DoctorReport aggregates diagnostics from `mind doctor`.
 type DoctorReport struct {
-	Diagnostics  []Diagnostic    `json:"diagnostics"`
-	Summary      DoctorSummary   `json:"summary"`
-	FixesApplied []string        `json:"fixes_applied,omitempty"`
+	Diagnostics  []Diagnostic  `json:"diagnostics"`
+	Summary      DoctorSummary `json:"summary"`
+	FixesApplied []string      `json:"fixes_applied,omitempty"`
 }
 
 // DoctorSummary counts diagnostic outcomes.
@@ -81,9 +81,9 @@ type Suggestion struct {
 
 // DocumentList represents the output of `mind docs list`.
 type DocumentList struct {
-	Documents []Document       `json:"documents"`
-	ByZone    map[string]int   `json:"by_zone"`
-	Total     int              `json:"total"`
+	Documents []Document     `json:"documents"`
+	ByZone    map[string]int `json:"by_zone"`
+	Total     int            `json:"total"`
 }
 
 // StubEntry represents a stub document with remediation hint.

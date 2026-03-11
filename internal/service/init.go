@@ -55,14 +55,14 @@ func (s *InitService) Init(root, name string, withGitHub, fromExisting bool) (*d
 
 	// Stub documents with their content generators
 	stubs := map[string]string{
-		"docs/spec/project-brief.md":  generate.StubBriefTemplate(),
-		"docs/spec/requirements.md":   generate.StubDocument("Requirements"),
-		"docs/spec/architecture.md":   generate.StubDocument("Architecture"),
-		"docs/spec/domain-model.md":   generate.StubDocument("Domain Model"),
-		"docs/state/current.md":       generate.CurrentStub(),
-		"docs/state/workflow.md":      generate.WorkflowStub(),
-		"docs/blueprints/INDEX.md":    generate.IndexStub(),
-		"docs/knowledge/glossary.md":  generate.GlossaryStub(),
+		"docs/spec/project-brief.md": generate.StubBriefTemplate(),
+		"docs/spec/requirements.md":  generate.StubDocument("Requirements"),
+		"docs/spec/architecture.md":  generate.StubDocument("Architecture"),
+		"docs/spec/domain-model.md":  generate.StubDocument("Domain Model"),
+		"docs/state/current.md":      generate.CurrentStub(),
+		"docs/state/workflow.md":     generate.WorkflowStub(),
+		"docs/blueprints/INDEX.md":   generate.IndexStub(),
+		"docs/knowledge/glossary.md": generate.GlossaryStub(),
 	}
 
 	for relPath, content := range stubs {
