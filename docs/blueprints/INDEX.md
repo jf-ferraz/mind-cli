@@ -8,6 +8,7 @@
 
 | # | Blueprint | Concern | Lines | Summary |
 |---|-----------|---------|-------|---------|
+| 00 | [Project Guidelines](00-project-guidelines.md) | North star | 602 | Overview, standards, golden patterns, anti-patterns, goals, decision log |
 | 01 | [System Architecture](01-system-architecture.md) | Structural backbone | 1066 | 4-layer architecture, design principles, DI, error handling, concurrency |
 | 02 | [Domain Model](02-domain-model.md) | Entities & rules | 1459 | 24 entities, enums, business rules, state machines, agent chains |
 | 03 | [Data Contracts](03-data-contracts.md) | External formats | 2310 | mind.toml/mind.lock schemas, JSON outputs, MCP tool schemas, exit codes |
@@ -16,6 +17,7 @@
 | 06 | [Reconciliation Engine](06-reconciliation-engine.md) | State tracking | 1042 | Hash computation, dependency graph, staleness propagation algorithm |
 | 07 | [AI Workflow Integration](07-ai-workflow-integration.md) | AI bridge | 1419 | 4 integration models: Pre-Flight, MCP Server, Watch, Orchestration |
 | 08 | [Implementation Roadmap](08-implementation-roadmap.md) | Delivery plan | 1320 | 6 phases, package structure, testing strategy, CI/CD |
+| 09 | [Use Cases & Walkthroughs](09-use-cases.md) | Practical guide | 1944 | Real-world scenarios, step-by-step tutorials, troubleshooting, FAQ |
 
 ## Document Dependency Graph
 
@@ -45,7 +47,7 @@
                     └──────────────┘
 ```
 
-**Reading order**: 01 → 02 → 03 → 06 → {04, 05, 07} in any order → 08
+**Reading order**: 00 (first) → 01 → 02 → 03 → 06 → {04, 05, 07} in any order → 08 → 09 (reference)
 
 ## Superseded Blueprints
 
