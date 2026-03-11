@@ -24,7 +24,7 @@ manages iterations, and bridges AI agent workflows.`,
 }
 
 func init() {
-	rootCmd.PersistentFlags().BoolVar(&flagJSON, "json", false, "Output in JSON format")
+	rootCmd.PersistentFlags().BoolVarP(&flagJSON, "json", "j", false, "Output in JSON format")
 	rootCmd.PersistentFlags().BoolVar(&flagNoColor, "no-color", false, "Disable colored output")
 	rootCmd.PersistentFlags().StringVarP(&flagProject, "project", "p", "", "Path to project root (default: auto-detect)")
 }

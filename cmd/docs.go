@@ -215,9 +215,7 @@ func runDocsSearch(cmd *cobra.Command, args []string) error {
 		var lines []string
 
 		scanner := bufio.NewScanner(f)
-		lineNum := 0
 		for scanner.Scan() {
-			lineNum++
 			lines = append(lines, scanner.Text())
 		}
 
@@ -315,20 +313,6 @@ func runDocsOpen(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(os.Stderr, "  %s\n", m.Path)
 		}
 		os.Exit(1)
-		return nil
-	}
-
-	if flagJSON {
-		mode := render.DetectMode(flagJSON, flagNoColor)
-		r := render.New(mode, render.TermWidth())
-		result := map[string]string{
-			"path":     matches[0].Path,
-			"abs_path": matches[0].AbsPath,
-		}
-		fmt.Print(r.RenderWorkflowStatus(nil)) // placeholder
-		_ = result
-		data := fmt.Sprintf(`{"path": %q, "abs_path": %q}`, matches[0].Path, matches[0].AbsPath)
-		fmt.Println(data)
 		return nil
 	}
 

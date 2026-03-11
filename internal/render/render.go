@@ -334,7 +334,8 @@ func (r *Renderer) RenderVersionInfo(info *domain.VersionInfo) string {
 func (r *Renderer) renderDoctorText(report *domain.DoctorReport) string {
 	var b strings.Builder
 
-	fmt.Fprintln(&b, "=== Doctor Report ===\n")
+	fmt.Fprintln(&b, "=== Doctor Report ===")
+	fmt.Fprintln(&b)
 
 	for _, d := range report.Diagnostics {
 		icon := "✓"
