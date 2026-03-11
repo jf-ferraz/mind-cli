@@ -1,5 +1,18 @@
 # Workflow State
 
-<!-- Managed by the orchestrator during workflow execution.
-     Contains position tracking, completed artifacts, and session handoff context.
-     Do not edit manually — the orchestrator overwrites this file. -->
+## Position
+- **Type**: NEW_PROJECT
+- **Descriptor**: core-cli
+- **Iteration**: docs/iterations/001-new-project-core-cli/
+- **Branch**: feature/core-cli
+- **Last Agent**: none
+- **Remaining Chain**: [analyst, architect, developer, tester, reviewer]
+- **Session**: 1 of 2
+
+## Completed Artifacts
+| Agent | Output | Location |
+|-------|--------|----------|
+
+## Dispatch Log
+| Agent | Agent File | Frontmatter Model | Task Model Param | Status |
+|-------|-----------|-------------------|-----------------|--------|
