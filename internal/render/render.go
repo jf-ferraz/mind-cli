@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/jf-ferraz/mind-cli/domain"
@@ -558,6 +559,128 @@ func (r *Renderer) renderWorkflowHistoryText(history *domain.WorkflowHistory) st
 
 	fmt.Fprintf(&b, "\nTotal: %d iteration(s)\n", history.Total)
 	return b.String()
+}
+
+// RenderReconcileResult formats a ReconcileResult for display (FR-51..FR-53).
+func (r *Renderer) RenderReconcileResult(result *domain.ReconcileResult) string {
+	if r.mode == ModeJSON {
+		return jsonMarshal(result)
+	}
+	return r.renderReconcileResultText(result)
+}
+
+// RenderGraph formats a dependency graph as an ASCII tree (FR-54).
+// stale is a map of document IDs to stale reasons (may be nil).
+func (r *Renderer) RenderGraph(graph *domain.Graph, stale map[string]string) string {
+	if r.mode == ModeJSON {
+		payload := struct {
+			Graph *domain.Graph      `json:"graph"`
+			Stale map[string]string  `json:"stale,omitempty"`
+		}{Graph: graph, Stale: stale}
+		return jsonMarshal(payload)
+	}
+	return r.renderGraphText(graph, stale)
+}
+
+func (r *Renderer) renderReconcileResultText(result *domain.ReconcileResult) string {
+	var b strings.Builder
+
+	fmt.Fprintf(&b, "=== Reconciliation ===\n\n")
+	fmt.Fprintf(&b, "Status: %s\n\n", result.Status)
+
+	if len(result.Changed) > 0 {
+		fmt.Fprintf(&b, "Changed (%d):\n", len(result.Changed))
+		for _, id := range result.Changed {
+			fmt.Fprintf(&b, "  ~ %s\n", id)
+		}
+		fmt.Fprintln(&b)
+	}
+
+	if len(result.Stale) > 0 {
+		fmt.Fprintf(&b, "Stale (%d):\n", len(result.Stale))
+		for id, reason := range result.Stale {
+			fmt.Fprintf(&b, "  ! %s\n", id)
+			fmt.Fprintf(&b, "    reason: %s\n", reason)
+		}
+		fmt.Fprintln(&b)
+	}
+
+	if len(result.Missing) > 0 {
+		fmt.Fprintf(&b, "Missing (%d):\n", len(result.Missing))
+		for _, id := range result.Missing {
+			fmt.Fprintf(&b, "  ? %s\n", id)
+		}
+		fmt.Fprintln(&b)
+	}
+
+	if len(result.Undeclared) > 0 {
+		fmt.Fprintf(&b, "Undeclared (%d):\n", len(result.Undeclared))
+		for _, path := range result.Undeclared {
+			fmt.Fprintf(&b, "  + %s\n", path)
+		}
+		fmt.Fprintln(&b)
+	}
+
+	if len(result.Warnings) > 0 {
+		fmt.Fprintln(&b, "Warnings:")
+		for _, w := range result.Warnings {
+			fmt.Fprintf(&b, "  %s\n", w)
+		}
+		fmt.Fprintln(&b)
+	}
+
+	fmt.Fprintf(&b, "Total: %d | Changed: %d | Stale: %d | Missing: %d | Clean: %d\n",
+		result.Stats.Total, result.Stats.Changed, result.Stats.Stale,
+		result.Stats.Missing, result.Stats.Clean)
+
+	return b.String()
+}
+
+func (r *Renderer) renderGraphText(graph *domain.Graph, stale map[string]string) string {
+	var b strings.Builder
+
+	fmt.Fprintln(&b, "=== Dependency Graph ===")
+	fmt.Fprintln(&b)
+
+	if len(graph.Nodes) == 0 {
+		fmt.Fprintln(&b, "No dependencies declared in mind.toml [[graph]].")
+		return b.String()
+	}
+
+	// Collect and sort nodes for deterministic output
+	nodes := sortedKeys(graph.Nodes)
+
+	for _, node := range nodes {
+		staleMarker := ""
+		if _, ok := stale[node]; ok {
+			staleMarker = " [STALE]"
+		}
+		fmt.Fprintf(&b, "%s%s\n", node, staleMarker)
+
+		edges := graph.Forward[node]
+		for i, edge := range edges {
+			prefix := "├── "
+			if i == len(edges)-1 {
+				prefix = "└── "
+			}
+			targetStale := ""
+			if _, ok := stale[edge.To]; ok {
+				targetStale = " [STALE]"
+			}
+			fmt.Fprintf(&b, "  %s(%s) %s%s\n", prefix, edge.Type, edge.To, targetStale)
+		}
+	}
+
+	return b.String()
+}
+
+func sortedKeys(m map[string]bool) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func jsonMarshal(v any) string {

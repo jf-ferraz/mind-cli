@@ -67,6 +67,33 @@ func (s *ReconciliationService) Reconcile(projectRoot string, opts domain.Reconc
 	return result, nil
 }
 
+// LoadGraph loads the dependency graph from config and annotates with staleness from the lock file.
+// Returns the graph and a map of stale document IDs to reasons (may be nil).
+func (s *ReconciliationService) LoadGraph(projectRoot string) (*domain.Graph, map[string]string, error) {
+	cfg, err := s.configRepo.ReadProjectConfig()
+	if err != nil {
+		return nil, nil, fmt.Errorf("mind.toml required for reconciliation: %w", err)
+	}
+
+	graph := domain.BuildGraph(cfg.Graph)
+
+	// Try to load staleness data from existing lock
+	var stale map[string]string
+	if s.lockRepo.Exists() {
+		lock, err := s.lockRepo.Read()
+		if err == nil && lock != nil {
+			stale = make(map[string]string)
+			for id, entry := range lock.Entries {
+				if entry.Stale {
+					stale[id] = entry.StaleReason
+				}
+			}
+		}
+	}
+
+	return graph, stale, nil
+}
+
 // ReadStaleness reads existing lock data for the staleness panel (mind status).
 // Returns nil when no lock file exists. Does NOT trigger reconciliation (FR-77).
 func (s *ReconciliationService) ReadStaleness(projectRoot string) (*domain.StalenessInfo, error) {
