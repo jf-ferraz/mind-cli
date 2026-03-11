@@ -401,3 +401,114 @@ domain/reconcile.go ──────────────> Go stdlib only
   - **Suite runs reconciliation internally**: Would cause redundant I/O. The command handler also needs the result. Rejected.
   - **Dedicated reconciliation panel (not suite)**: Would break the established check framework pattern and require special-case rendering. Rejected.
 - **Consequences**: `ReconcileSuite()` has a different signature from other suite constructors. `ValidationService.RunAll()` must receive or compute the reconcile result before calling the suite.
+
+---
+
+## Phase 2: TUI Dashboard
+
+Phase 2 adds a full-screen interactive TUI dashboard (`mind tui`) as a new presentation layer alongside the existing CLI. This section documents the architectural extensions. For full design rationale, see [architecture-delta.md](../iterations/003-phase-2-tui-dashboard/architecture-delta.md).
+
+### Phase 2 Packages
+
+| Component | Package | Responsibility | Dependencies |
+|-----------|---------|----------------|-------------|
+| TUI app shell | `tui/app.go` | Top-level Bubble Tea model: chrome, tab delegation, service injection, global keys | `bubbletea`, `lipgloss`, `domain`, `cmd.Deps` |
+| Status tab | `tui/status.go` | Zone health bars, staleness panel, workflow, warnings, suggestions | `domain`, `lipgloss`, `tui/components` |
+| Documents tab | `tui/docs.go` | Document list, zone filter, search, preview pane | `domain`, `lipgloss`, `bubbles`, `glamour`, `tui/components` |
+| Iterations tab | `tui/iterations.go` | Iteration table, type filter, detail expander | `domain`, `lipgloss`, `tui/components` |
+| Checks tab | `tui/checks.go` | Accordion suites, lazy validation, spinner, check detail | `domain`, `lipgloss`, `bubbles`, `tui/components` |
+| Quality tab | `tui/quality.go` | Score chart, latest analysis, empty state | `domain`, `lipgloss`, `tui/components` |
+| Help overlay | `tui/help.go` | Context-sensitive keybinding overlay | `lipgloss` |
+| Status bar | `tui/statusbar.go` | Bottom bar with key hints and cursor position | `lipgloss` |
+| Theme | `tui/styles.go` | Lip Gloss theme constants for all components | `lipgloss` |
+| Key bindings | `tui/keys.go` | Global and per-tab key binding definitions | `bubbles/key` |
+| Messages | `tui/messages.go` | Custom Bubble Tea message types | `domain` |
+| Reusable components | `tui/components/` | Pure rendering functions: zone bars, filter bars, panels, chart, accordion | `domain`, `lipgloss` |
+| Quality domain types | `domain/quality.go` | `QualityEntry`, `QualityDimension`, BR-36/37/38 validation | Go stdlib only |
+| Quality repo (fs) | `internal/repo/fs/quality_repo.go` | Read `quality-log.yml` from disk | `domain`, `yaml.v3` |
+| Quality repo (mem) | `internal/repo/mem/quality_repo.go` | In-memory test implementation | `domain` |
+| TUI command | `cmd/tui_cmd.go` | `mind tui` Cobra command, project detection, deps wiring | `tui`, `cmd.BuildDeps` |
+| Wiring | `cmd/root.go` (modified) | `Deps` struct, `BuildDeps()` function | `internal/service`, `internal/repo/fs` |
+
+### Updated Dependency Matrix (Phase 2 additions)
+
+```
+cmd/tui_cmd.go ────────> tui/app
+cmd/tui_cmd.go ────────> cmd.BuildDeps()
+
+tui/app.go ────────────> tui/* (tab models, styles, keys, messages)
+tui/app.go ────────────> cmd.Deps (service injection)
+tui/app.go ────────────> bubbletea, lipgloss
+
+tui/status.go ─────────> tui/components/*
+tui/status.go ─────────> domain
+
+tui/docs.go ───────────> tui/components/*
+tui/docs.go ───────────> domain, bubbles/textinput, bubbles/viewport, glamour
+
+tui/iterations.go ─────> tui/components/*
+tui/iterations.go ─────> domain
+
+tui/checks.go ─────────> tui/components/*
+tui/checks.go ─────────> domain, bubbles/spinner
+
+tui/quality.go ─────────> tui/components/*
+tui/quality.go ─────────> domain
+
+tui/components/* ──────> domain, lipgloss
+
+internal/repo/interfaces.go > domain (adds QualityRepo, DocRepo.Search)
+internal/repo/fs/quality_repo.go > domain, yaml.v3
+internal/repo/mem/quality_repo.go > domain
+
+domain/quality.go ─────> Go stdlib only
+```
+
+### Phase 2 Key Decisions
+
+#### Decision: TUI as Peer Presentation Layer
+
+- **Choice**: The `tui/` package is a new presentation-layer package at the same level as `cmd/` and `internal/render/`. It accesses services through the same interfaces as the CLI, not through CLI output parsing.
+- **Rationale**: The TUI has fundamentally different rendering requirements (Bubble Tea `View()` with Lip Gloss styling). Direct service access gives the TUI full control over data presentation while reusing all business logic.
+- **Rejected alternatives**:
+  - **TUI calls CLI commands and parses output**: Fragile, couples TUI to text formatting. Rejected.
+  - **TUI extends Renderer with a fourth mode**: Violates Renderer's single-responsibility. Rejected.
+- **Consequences**: Two presentation layers share services but render independently. Adding a new domain type requires updating both CLI rendering and TUI views.
+
+#### Decision: Per-Tab Delegated Model Architecture
+
+- **Choice**: Each tab is an independent `tea.Model`. The top-level `App` delegates messages to the active tab. Communication via Bubble Tea messages only.
+- **Rationale**: BP-05 Section 3 specifies this pattern. Isolates state per tab. Enables independent development, testing, tab state preservation (FR-123), and lazy loading.
+- **Rejected alternatives**:
+  - **Monolithic model**: 500+ line `Update()`, untestable in isolation. Rejected.
+  - **Shared mutable state**: Race conditions with async commands. Rejected.
+- **Consequences**: Data sharing between tabs goes through `App.Update()` message routing.
+
+#### Decision: BuildDeps Pattern for Wiring Centralization
+
+- **Choice**: Extract a `Deps` struct and `BuildDeps()` function from `PersistentPreRunE`. Both CLI and TUI call `BuildDeps()`. Existing package-level variables retained for CLI backward compatibility.
+- **Rationale**: The TUI needs the same services but does not go through Cobra's `PersistentPreRunE`. A shared function eliminates dual wiring.
+- **Rejected alternatives**:
+  - **Full migration to Deps in every handler**: High-risk refactoring across 10+ files. Rejected for Phase 2 scope.
+  - **TUI gets separate wiring**: Creates dual wiring the convergence identified as a risk. Rejected.
+- **Consequences**: Two wiring patterns coexist temporarily. `BuildDeps()` is the single source of truth.
+
+#### Decision: Components as Pure Functions
+
+- **Choice**: The `tui/components/` sub-package contains pure rendering functions, not `tea.Model` implementations. Only tab views and help overlay are full models.
+- **Rationale**: Most components (zone bars, filter bars, panels) do not handle input. Making them models adds boilerplate without benefit.
+- **Rejected alternatives**:
+  - **Every component is a tea.Model**: Unnecessary Init/Update overhead. Rejected.
+  - **No components package**: Tab `View()` functions become 200+ lines. Rejected.
+- **Consequences**: Tab `View()` functions call component rendering functions. Tab `Update()` handles all keys.
+
+### Extension Points Activated by Phase 2
+
+| Extension Point | How It Was Used |
+|----------------|----------------|
+| New presentation layer | `tui/` package added alongside `cmd/` and `internal/render/` |
+| New repository | `QualityRepo` interface added to `interfaces.go`, with `fs/quality_repo.go` and `mem/quality_repo.go` implementations |
+| New domain types | `QualityEntry` and `QualityDimension` added to `domain/quality.go` with business rule validation |
+| New command | `cmd/tui_cmd.go` added with TUI-specific wiring pattern |
+| DocRepo extension | `Search()` method added to `DocRepo` interface for TUI document search |
+| Wiring pattern | `BuildDeps()` function and `Deps` struct extracted from `PersistentPreRunE` |

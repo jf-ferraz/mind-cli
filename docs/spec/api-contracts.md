@@ -989,3 +989,232 @@ type = "requires"
 - Exit code 4 is used exclusively by `mind reconcile --check`. No other command returns 4.
 - `mind check all` with stale documents returns 0 (stale = WARN) or 1 (stale = FAIL with `--strict`), never 4.
 - Exit code 4 indicates "structurally sound but temporally stale" -- a semantic distinction from "validation failure" (exit 1).
+
+---
+
+## Phase 2: TUI Dashboard Contracts
+
+### 10. `mind tui` Command Interface
+
+#### 10.1 `mind tui`
+
+| Property | Value |
+|----------|-------|
+| Synopsis | `mind tui` |
+| Arguments | None |
+| Flags | Global only (`--project-root` is honored; `--json` and `--no-color` are ignored) |
+| Requires project | Yes |
+| JSON output | N/A (full-screen TUI, not a structured output command) |
+| Exit codes | 0 (normal quit), 2 (runtime error during TUI), 3 (not a Mind project) |
+
+**Behavior**: Detect project root. Construct all services via `BuildDeps()`. Launch a full-screen Bubble Tea application with alternate screen buffer. Load project data asynchronously. Render a 5-tab dashboard. Exit cleanly on `q` or `Ctrl+C`, restoring terminal state.
+
+**Non-applicable features**: `--json` is not applicable. The TUI is an interactive mode that takes over the terminal. `--no-color` is not applicable because the TUI uses Lip Gloss styling directly.
+
+---
+
+### 11. TUI Tab Contracts
+
+Each tab has a defined data source, loading trigger, key bindings, and visual contract.
+
+#### 11.1 Tab 1: Status
+
+| Property | Value |
+|----------|-------|
+| Data source | `ProjectService.AssembleHealth()`, `ReconciliationService.ReadStaleness()` |
+| Load trigger | App initialization, manual refresh (`r`) |
+| Layout | Two-column at >= 80 cols; single-column below 80 |
+| Key bindings | (global only -- no tab-specific keys beyond quick actions) |
+
+**Visual contract**: Left column shows 5 zone health progress bars (zone label + bar + fraction), staleness panel (when stale docs exist), warnings (`!` prefix), suggestions (`->` prefix). Right column shows workflow state panel and quick actions reference.
+
+---
+
+#### 11.2 Tab 2: Documents
+
+| Property | Value |
+|----------|-------|
+| Data source | Documents from `ProjectHealth.Zones`; preview via `DocRepo.Read()` + Glamour; search via `DocRepo.Search()` |
+| Load trigger | Propagated from Status tab health load |
+| Layout | Full-width list with zone grouping; 40/60 split when preview is open |
+
+**Tab-specific key bindings**:
+
+| Key | Action | Context |
+|-----|--------|---------|
+| `a` | Show all zones | When search not focused |
+| `s` | Filter to spec zone | When search not focused |
+| `b` | Filter to blueprints zone | When search not focused |
+| `t` | Filter to state zone | When search not focused |
+| `i` | Filter to iterations zone | When search not focused |
+| `k` | Filter to knowledge zone | When search not focused |
+| `/` | Activate search input | Always |
+| `Esc` | Clear search / close preview | Always |
+| `Enter` | Toggle preview pane | When document selected |
+| `e` | Open in $EDITOR | When document selected |
+| `j` / `Down` | Move cursor down | Always |
+| `k` / `Up` | Move cursor up | When search not focused |
+
+---
+
+#### 11.3 Tab 3: Iterations
+
+| Property | Value |
+|----------|-------|
+| Data source | `IterationRepo.List()` |
+| Load trigger | App initialization, manual refresh (`r`) |
+| Layout | Full-width table with columns: #, Type, Name, Status, Date, Files |
+
+**Tab-specific key bindings**:
+
+| Key | Action |
+|-----|--------|
+| `a` | Show all types |
+| `n` | Filter to NEW_PROJECT |
+| `e` | Filter to ENHANCEMENT |
+| `b` | Filter to BUG_FIX |
+| `r` | Filter to REFACTOR |
+| `Enter` | Expand/collapse iteration detail |
+| `j` / `Down` | Move cursor down |
+| `k` / `Up` | Move cursor up |
+
+---
+
+#### 11.4 Tab 4: Checks
+
+| Property | Value |
+|----------|-------|
+| Data source | `ValidationService.RunAll()` with `ReconciliationService.Reconcile(CheckOnly: true)` |
+| Load trigger | First activation (lazy), manual re-run (`r`) |
+| Layout | Accordion sections per suite with overall summary bar |
+
+**Tab-specific key bindings**:
+
+| Key | Action |
+|-----|--------|
+| `Enter` | Expand/collapse suite section |
+| `Space` | Toggle check detail pane |
+| `r` | Re-run all validation suites |
+| `j` / `Down` | Move cursor down |
+| `k` / `Up` | Move cursor up |
+
+**Loading states**: Spinner with "Running validation..." during execution. Cached results shown on subsequent visits unless `r` is pressed.
+
+---
+
+#### 11.5 Tab 5: Quality
+
+| Property | Value |
+|----------|-------|
+| Data source | `QualityRepo.ReadLog()` |
+| Load trigger | App initialization, manual refresh (`r`) |
+| Layout | Upper half: ASCII score chart; Lower half: selected entry analysis detail |
+
+**Tab-specific key bindings**:
+
+| Key | Action |
+|-----|--------|
+| `h` / `Left` | Select previous data point |
+| `l` / `Right` | Select next data point |
+| `Enter` | Show full analysis for selected point |
+| `j` / `Down` | Scroll dimension details |
+| `k` / `Up` | Scroll dimension details |
+
+**Empty state**: When no quality data exists, displays: "No quality data. Run a convergence analysis and then `mind quality log <file>` to start tracking."
+
+---
+
+### 12. TUI Global Key Bindings
+
+These keys work in every tab and are never overridden by tab-specific handlers.
+
+| Key | Action | Context |
+|-----|--------|---------|
+| `1` | Switch to Status tab | Always |
+| `2` | Switch to Docs tab | Always |
+| `3` | Switch to Iterations tab | Always |
+| `4` | Switch to Checks tab | Always |
+| `5` | Switch to Quality tab | Always |
+| `Tab` | Next tab (wraps 5->1) | Always |
+| `Shift+Tab` | Previous tab (wraps 1->5) | Always |
+| `q` | Quit application | When no modal overlay is open |
+| `Ctrl+C` | Force quit | Always (even with modal open) |
+| `?` | Toggle help overlay | Always |
+| `r` | Refresh all data | When no text input is focused |
+
+**Modal override**: When the help overlay is open, `q` closes the overlay (does not quit). `Esc` and `?` also close the overlay. `Ctrl+C` always force-quits.
+
+**Text input override**: When a text input is focused (Docs tab search), character keys are consumed by the input. `r` types 'r' into the field rather than triggering refresh.
+
+---
+
+### 13. TUI Responsive Design Contract
+
+| Terminal Size | Behavior |
+|---------------|----------|
+| Width < 80 or Height < 24 | Display centered message: "Terminal too small. Minimum: 80x24. Current: {w}x{h}." |
+| 80 <= Width < 100 | Standard mode. Two-column Status tab. Progress bars at 10 chars. |
+| Width >= 100 | Wide mode. Wider columns, progress bars at 20 chars. |
+
+**Resize handling**: The TUI handles `tea.WindowSizeMsg` events. Layout recalculates on resize without crashing. If resized below minimum, the "too small" message appears. If resized back above minimum, the full interface resumes with all data intact.
+
+---
+
+### 14. Phase 2 Exit Codes (Extended)
+
+| Code | Meaning | Used By | Example |
+|------|---------|---------|---------|
+| 0 | Success | All commands, `mind tui` (normal quit) | User presses `q` to exit TUI |
+| 1 | Validation failure / issues found | `check *`, `doctor`, `docs stubs` | (unchanged) |
+| 2 | Runtime error | `init`, `reconcile`, `tui` | TUI crashes, I/O failure |
+| 3 | Configuration error / not a project | All project-requiring commands, `tui` | `mind tui` in non-project directory |
+| 4 | Staleness detected | `reconcile --check` only | (unchanged) |
+
+---
+
+### 15. Phase 2 File Format Contracts
+
+#### 15.1 `quality-log.yml`
+
+Location: `quality-log.yml` in the project root directory (or `docs/knowledge/quality-log.yml`).
+
+```yaml
+- topic: "auth-strategy"
+  variant: "v2"
+  date: "2026-03-09T14:30:00Z"
+  score: 4.0
+  gate_pass: true
+  dimensions:
+    - name: "rigor"
+      value: 4
+    - name: "coverage"
+      value: 4
+    - name: "actionability"
+      value: 5
+    - name: "objectivity"
+      value: 3
+    - name: "convergence"
+      value: 4
+    - name: "depth"
+      value: 4
+  personas:
+    - "security-analyst"
+    - "api-designer"
+    - "performance-eng"
+  output_path: "docs/knowledge/auth-strategy-convergence.md"
+```
+
+| Field | Type | Required | Validation Rule |
+|-------|------|----------|----------------|
+| `topic` | string | Yes | Non-empty |
+| `variant` | string | No | Free text |
+| `date` | string (RFC 3339) | Yes | Valid timestamp |
+| `score` | float | Yes | 0.0 <= score <= 5.0 (BR-36) |
+| `gate_pass` | bool | Yes | Must equal `score >= 3.0` (BR-37) |
+| `dimensions` | array of 6 objects | Yes | Exactly 6 entries (BR-38) |
+| `dimensions[].name` | string | Yes | One of: rigor, coverage, actionability, objectivity, convergence, depth |
+| `dimensions[].value` | int | Yes | 0 <= value <= 5 (BR-38) |
+| `personas` | array of strings | No | Free text |
+| `output_path` | string | No | Relative path |
+
+**When absent**: If `quality-log.yml` does not exist, `QualityRepo.ReadLog()` returns an empty slice. The Quality tab displays the empty state message.

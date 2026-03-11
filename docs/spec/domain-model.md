@@ -385,7 +385,7 @@ ProjectHealth 1───0..1 LockFile (read from mind.lock for staleness panel)
 | ID | Constraint |
 |----|-----------|
 | **DC-3** (updated) | All enums (Zone, DocStatus, BriefGate, RequestType, IterationStatus, CheckLevel, **EdgeType, LockStatus, EntryStatus**) are typed string constants, not raw strings. |
-| **DC-4** (updated) | `Slugify()`, `Classify()`, **and `BuildGraph()`** are the only domain functions with logic. All are pure (no side effects, deterministic). `BuildGraph()` constructs forward/reverse adjacency lists from a slice of GraphEdge. |
+| **DC-4** (updated) | `Slugify()`, `Classify()`, `BuildGraph()`, **and `QualityEntry.Validate()`** are the only domain functions with logic. All are pure (no side effects, deterministic). `BuildGraph()` constructs forward/reverse adjacency lists from a slice of GraphEdge. `QualityEntry.Validate()` checks BR-36/37/38 invariants. |
 
 ---
 
