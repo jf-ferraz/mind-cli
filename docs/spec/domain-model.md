@@ -244,3 +244,145 @@ Note: INCOMPLETE is an error state — overview.md is missing,
 | **DC-2** | Domain types are pure data structures with minimal behavior. Business logic involving I/O is in the service layer. |
 | **DC-3** | All enums (Zone, DocStatus, BriefGate, RequestType, IterationStatus, CheckLevel) are typed string constants, not raw strings. |
 | **DC-4** | `Slugify()` and `Classify()` are the only domain functions with logic. Both are pure (no side effects, deterministic). |
+
+---
+
+## Phase 1.5: Reconciliation Engine Domain Extensions
+
+### New Entities
+
+| Entity | Description | Key Attributes | Relationships |
+|--------|-------------|----------------|---------------|
+| **LockFile** | Persisted reconciliation state stored as `mind.lock` in the project root. Contains per-document tracking entries, aggregate stats, and overall project staleness status. | GeneratedAt (time.Time), Status (LockStatus), Stats (LockStats), Entries (map[string]LockEntry) | Contains LockEntries; has one LockStats; has one LockStatus |
+| **LockEntry** | Per-document tracking entry within the lock file. Records the document's hash, filesystem metadata, staleness state, and stub classification. | ID (string, document ID), Path (string, relative path), Hash (string, `sha256:{hex}`), Size (int64), ModTime (time.Time), Stale (bool), StaleReason (string), IsStub (bool), Status (EntryStatus) | Belongs to LockFile; references a DocEntry via ID |
+| **ReconcileResult** | Computed result from a reconciliation run. Ephemeral -- returned from the engine to the caller, not persisted directly. | Changed ([]string), Stale (map[string]string), Missing ([]string), Undeclared ([]string), Status (LockStatus), Stats (LockStats) | Contains LockStats; has one LockStatus |
+| **GraphEdge** | A directed dependency between two documents as declared in `mind.toml [[graph]]`. Represents the assertion that a change in `from` may invalidate `to`. | From (string, document ID), To (string, document ID), Type (EdgeType) | Belongs to Config (via Graph field); participates in Graph |
+| **Graph** | Directed graph of document dependencies. Built from `[[graph]]` entries on every reconciliation run. Not persisted -- the manifest is the source of truth. | Forward (map[string][]GraphEdge), Reverse (map[string][]GraphEdge), Nodes (map[string]bool) | Contains GraphEdges; built from Config.Graph |
+
+### New Supporting Types
+
+| Type | Kind | Values/Structure | Used By |
+|------|------|------------------|---------|
+| **EdgeType** | Enum (string) | `informs`, `requires`, `validates` | GraphEdge |
+| **LockStatus** | Enum (string) | `CLEAN`, `STALE`, `DIRTY` | LockFile, ReconcileResult |
+| **EntryStatus** | Enum (string) | `PRESENT`, `MISSING`, `CHANGED`, `UNCHANGED` | LockEntry |
+| **LockStats** | Struct | Total (int), Changed (int), Stale (int), Missing (int), Undeclared (int), Clean (int) | LockFile, ReconcileResult |
+| **ReconcileOpts** | Struct | Force (bool), CheckOnly (bool), GraphOnly (bool) | ReconciliationService |
+
+### New Relationships
+
+```
+Config 1───* GraphEdge (via [[graph]] section, stored as Graph []GraphEdge)
+
+LockFile 1───* LockEntry (via Entries map, keyed by document ID)
+LockFile 1───1 LockStats
+LockFile *───1 LockStatus
+
+Graph 1───* GraphEdge (via Forward and Reverse maps)
+
+ReconcileResult 1───1 LockStats
+ReconcileResult *───1 LockStatus
+
+ProjectHealth 1───0..1 LockFile (read from mind.lock for staleness panel)
+```
+
+### New Business Rules
+
+| ID | Rule | Entities | Invariant |
+|----|------|----------|-----------|
+| **BR-24** | Hash computation uses SHA-256 of raw file bytes with no content normalization (no line-ending conversion, no whitespace stripping, no BOM removal). The hash format is `sha256:{64-character lowercase hex digest}`. | LockEntry | Hash is deterministic: identical file content always produces identical hash. |
+| **BR-25** | The mtime fast-path skips hash computation when file mtime and size match the lock entry. This is a performance optimization, not a correctness mechanism. If mtime lies (e.g., `touch` without content change), the engine computes a hash and discovers content is identical -- a wasted hash but no incorrect result. | LockEntry | Fast-path produces false negatives (unnecessary rehash) but never false positives (missed change when mtime differs). |
+| **BR-26** | Staleness propagates downstream only (in the direction of graph edges). If A has an edge to B and B changes, A is NOT stale. B's content derives from A, not the reverse. | Graph, LockEntry | Directionality matches semantic document dependency flow. |
+| **BR-27** | Staleness propagation has a depth limit of 10 levels. Documents beyond depth 10 are not marked stale, and a warning is emitted. In practice, document chains rarely exceed 4-5 levels. | Graph | Prevents pathological runaway in misconfigured graphs. |
+| **BR-28** | A document that changed (new hash differs from old hash) is fresh, not stale. Changed documents may make downstream documents stale, but they are not themselves stale. | LockEntry | Changed and stale are mutually exclusive states for a single entry. |
+| **BR-29** | Cycles in the dependency graph are invalid. Cycle detection uses DFS. If a back edge is found, reconciliation aborts with an error reporting the full cycle path. This is governed by the `no-circular-dependencies` invariant in `mind.toml [manifest.invariants]`. | Graph, GraphEdge | The dependency graph is a DAG (directed acyclic graph). |
+| **BR-30** | All document IDs in `[[graph]]` edge `from` and `to` fields must reference documents declared in `[documents]`. Undeclared references are errors, not warnings. | GraphEdge, Config, DocEntry | Graph edges are validated against the document registry before graph construction. |
+| **BR-31** | Lock file writes are atomic: content is written to `mind.lock.tmp`, then renamed to `mind.lock`. This prevents corrupted lock files from partial writes or process interruption. | LockFile | No partially-written lock files exist on disk after any operation. |
+| **BR-32** | Exit code 4 indicates staleness detection, used exclusively by `mind reconcile --check`. This is semantically distinct from validation failure (exit 1) and runtime error (exit 2). | ReconcileResult | Exit code mapping is deterministic. |
+| **BR-33** | Lock file overall status priority: STALE (any document stale) > DIRTY (no stale, any missing) > CLEAN (no stale, no missing). | LockFile, LockStatus | Status is deterministically derived from entry states. |
+| **BR-34** | The `is_stub` field in lock entries is computed by delegating to the existing `DocRepo.IsStub()` method during reconciliation. Stub detection logic is not reimplemented in the reconciliation engine. | LockEntry, Document | Single source of truth for stub classification (BR-2). |
+| **BR-35** | All three edge types (informs, requires, validates) propagate staleness identically. The type distinction affects only the staleness reason message text, not the propagation algorithm. | EdgeType, Graph | Uniform propagation with differentiated reporting. |
+
+### New Cross-Entity Constraints
+
+| ID | Constraint | Entities Involved |
+|----|-----------|-------------------|
+| **XC-10** | Every document ID in `[[graph]]` `from` and `to` fields must exist in `[documents]`. This is checked before graph construction, not during propagation. | Config, GraphEdge, DocEntry |
+| **XC-11** | Lock file entries must correspond 1:1 with documents declared in `mind.toml [documents]` at reconciliation time. Entries for documents removed from the manifest are pruned. Entries for newly added documents are created. | LockFile, LockEntry, Config |
+| **XC-12** | The `is_stub` value in lock entries must match the result of `DocRepo.IsStub()` for the same path at reconciliation time. If stub status changes between reconciliation runs, the lock entry is updated. | LockEntry, Document |
+
+### New State Machines
+
+#### Lock File Lifecycle
+
+```
+                 ┌──────────────────────────────────────┐
+                 │         No mind.lock exists           │
+                 └──────────────────┬───────────────────┘
+                                    │
+                              mind reconcile
+                                    │
+                                    ▼
+                 ┌──────────────────────────────────────┐
+                 │     Lock file created (baseline)      │
+                 │     All entries: stale = false         │
+                 └──────────────────┬───────────────────┘
+                                    │
+                        ┌───────────┼───────────┐
+                        │           │           │
+                  mind reconcile    │    mind reconcile
+                                    │       --force
+                        │           │           │
+                        ▼           │           ▼
+                 ┌──────────────┐   │   ┌──────────────┐
+                 │ Incremental  │   │   │ Full reset   │
+                 │ update       │   │   │ (re-baseline)│
+                 │ (fast path)  │   │   │              │
+                 └──────────────┘   │   └──────────────┘
+                                    │
+                          mind reconcile --check
+                                    │
+                                    ▼
+                         ┌──────────────────┐
+                         │ Read-only verify  │
+                         │ Exit 0 or Exit 4  │
+                         │ (no write)        │
+                         └──────────────────┘
+```
+
+**Operations**:
+- **Create** (first run): Hash all documents, create lock, no staleness possible.
+- **Update** (subsequent runs): mtime fast-path, rehash changed files, propagate staleness, write lock.
+- **Verify** (`--check`): Same as update but does not write lock. Exits 0 (clean) or 4 (stale).
+- **Reset** (`--force`): Discard existing lock, rehash everything, clear all staleness.
+
+#### Document Entry Status
+
+```
+                ┌─────────────┐
+                │  (no entry)  │  First reconciliation
+                └──────┬──────┘
+                       │
+                       ▼
+              ┌──────────────────┐
+              │    PRESENT       │  File exists, hash computed
+              └────────┬─────────┘
+                       │
+           ┌───────────┼───────────┐
+           │           │           │
+    file deleted   content same   content differs
+           │           │           │
+           ▼           ▼           ▼
+    ┌──────────┐ ┌───────────┐ ┌──────────┐
+    │ MISSING  │ │ UNCHANGED │ │ CHANGED  │
+    └──────────┘ └───────────┘ └──────────┘
+```
+
+**Note**: Entry status is computed on every reconciliation run. It is not a persisted state machine -- it is derived from comparing current filesystem state against the previous lock entry.
+
+### Updated Domain Layer Purity Constraints
+
+| ID | Constraint |
+|----|-----------|
+| **DC-3** (updated) | All enums (Zone, DocStatus, BriefGate, RequestType, IterationStatus, CheckLevel, **EdgeType, LockStatus, EntryStatus**) are typed string constants, not raw strings. |
+| **DC-4** (updated) | `Slugify()`, `Classify()`, **and `BuildGraph()`** are the only domain functions with logic. All are pure (no side effects, deterministic). `BuildGraph()` constructs forward/reverse adjacency lists from a slice of GraphEdge. |

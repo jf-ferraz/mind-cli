@@ -242,3 +242,116 @@ This document covers Phase 1 (Core CLI) only. Reconciliation (Phase 1.5), TUI (P
 ### Stub Detection
 
 - **FR-50**: GIVEN a file containing only `# Title\n## Section\n<!-- placeholder -->\n` WHEN stub detection runs THEN it is classified as a stub. GIVEN a file containing `# Title\n\nThis project provides a REST API for...` THEN it is classified as not a stub.
+
+---
+
+## Phase 1.5: Reconciliation Engine
+
+Phase 1.5 adds hash-based content tracking with staleness propagation through a dependency graph. It introduces the `mind reconcile` command, integrates staleness data into existing commands (`status`, `check all`, `doctor`), and manages the `mind.lock` file lifecycle. No new external dependencies -- SHA-256 is in Go's standard library.
+
+### Reconcile Command
+
+- **FR-51**: `mind reconcile` MUST compute SHA-256 hashes for all documents declared in `mind.toml [documents]`, build the dependency graph from `mind.toml [[graph]]`, detect changes by comparing hashes to `mind.lock`, propagate staleness downstream through the graph, and write the updated `mind.lock` file. [MUST]
+- **FR-52**: `mind reconcile --check` MUST perform the same scan and staleness propagation as `mind reconcile` but MUST NOT write or modify `mind.lock`. It MUST exit with code 0 when all documents are clean and exit with code 4 when any documents are stale. [MUST]
+- **FR-53**: `mind reconcile --force` MUST discard the existing `mind.lock` entirely, re-hash every declared document from scratch, clear all staleness flags, and write a new `mind.lock`. [MUST]
+- **FR-54**: `mind reconcile --graph` MUST output an ASCII tree visualization of the dependency graph declared in `mind.toml [[graph]]`, showing document IDs as nodes and edge types as labels. Stale nodes MUST be visually annotated when staleness data exists in `mind.lock`. [MUST]
+- **FR-55**: `mind reconcile` MUST support `--json` output producing a JSON object with changed document IDs, stale documents with reasons, missing documents, overall status (CLEAN/STALE/DIRTY), and stats. [MUST]
+- **FR-56**: `mind reconcile` MUST require a valid `mind.toml` with a `[documents]` section. When `mind.toml` is missing or has no documents, the command MUST exit with code 3. [MUST]
+
+### Hash Computation
+
+- **FR-57**: The engine MUST compute SHA-256 hashes of raw file bytes with no content normalization. Hash format MUST be `sha256:{64-character lowercase hex digest}`. [MUST]
+- **FR-58**: The engine MUST implement an mtime fast-path: skip hash computation when file mtime and size match the stored lock entry values. [MUST]
+- **FR-59**: Hash edge cases: empty files produce the SHA-256 of empty input; binary files are hashed with a warning; symlinks are resolved to target content; files >10MB are hashed with a warning; unreadable files are marked MISSING with an error reason. [MUST]
+
+### Dependency Graph
+
+- **FR-60**: The engine MUST parse `[[graph]]` entries from `mind.toml` (from, to, type fields) and construct a directed adjacency list with forward and reverse edges. [MUST]
+- **FR-61**: Three edge types MUST be supported: `informs` (produces "may be outdated"), `requires` (produces "prerequisite changed"), `validates` (produces "needs re-validation"). All three propagate staleness. [MUST]
+- **FR-62**: The engine MUST detect cycles via DFS. Cycles MUST abort reconciliation with exit code 2 and report the full cycle path. [MUST]
+- **FR-63**: All document IDs in `[[graph]]` entries MUST be validated against `[documents]`. Undeclared references MUST produce an error. [MUST]
+- **FR-64**: When no `[[graph]]` entries exist, the engine MUST still hash and track documents without staleness propagation. [MUST]
+
+### Staleness Propagation
+
+- **FR-65**: Staleness MUST propagate downstream only (in the direction of graph edges). [MUST]
+- **FR-66**: Staleness MUST propagate transitively with path information in the reason string. [MUST]
+- **FR-67**: Staleness propagation MUST enforce a depth limit of 10 levels with a warning when reached. [MUST]
+- **FR-68**: Documents that changed (new hash != old hash) MUST NOT be marked as stale. Changed and stale are mutually exclusive. [MUST]
+- **FR-69**: Documents already marked stale via one path MUST NOT be re-processed via another path. [MUST]
+
+### Lock File Lifecycle
+
+- **FR-70**: The lock file MUST be located at `mind.lock` in the project root. [MUST]
+- **FR-71**: The lock file MUST be JSON containing: generated_at, status (CLEAN/STALE/DIRTY), stats, and entries keyed by document ID with id, path, hash, size, mod_time, stale, stale_reason, is_stub, and status fields. [MUST]
+- **FR-72**: The lock file MUST survive round-trip (read, parse, write produces byte-identical output). [MUST]
+- **FR-73**: Lock file writes MUST be atomic (write to temp file, then rename). [MUST]
+- **FR-74**: When `mind.lock` does not exist, reconciliation MUST treat it as first run with no staleness. [MUST]
+- **FR-75**: Lock entries MUST include `is_stub` computed via `DocRepo.IsStub()`, not reimplemented. [MUST]
+- **FR-76**: Lock file status: STALE when any stale, DIRTY when missing but no stale, CLEAN otherwise. [MUST]
+
+### Integration with Existing Commands
+
+- **FR-77**: `mind status` MUST display a staleness panel when `mind.lock` exists with stale documents. Omit when no lock file. Do not trigger reconciliation. [MUST]
+- **FR-78**: `mind status --json` MUST include a `staleness` object when `mind.lock` exists, null otherwise. [MUST]
+- **FR-79**: `mind check all` MUST include a ReconcileSuite with checks for cycle detection, missing documents, and stale documents (WARN normally, FAIL with --strict). [MUST]
+- **FR-80**: `mind check all --json` MUST include a "reconcile" entry in the suites array. [MUST]
+- **FR-81**: `mind doctor` MUST report stale documents as WARN-level findings with remediation suggesting `mind reconcile --force`. [MUST]
+
+### Exit Codes (Extended)
+
+- **FR-82**: Exit code 4 MUST represent staleness detection, used exclusively by `mind reconcile --check`. Exit codes 0, 1, 2, 3 are unchanged. [MUST]
+
+### Config Extension
+
+- **FR-83**: `mind.toml` MUST support `[[graph]]` array-of-tables with `from`, `to`, and `type` string fields. [MUST]
+- **FR-84**: `mind check config` MUST validate `[[graph]]` entries: document ID format and valid edge types. Invalid entries MUST produce FAIL. [MUST]
+
+### Undeclared File Detection
+
+- **FR-85**: Reconciliation MUST detect files in `docs/` not declared in `mind.toml [documents]` and report them as warnings. Undeclared files MUST NOT participate in staleness propagation. [MUST]
+
+### Performance
+
+- **FR-86**: Full reconciliation MUST complete in under 200ms for 50 documents. [MUST]
+- **FR-87**: Incremental reconciliation MUST complete in under 50ms for 50 documents with 1 change. [MUST]
+
+### Phase 1.5 Acceptance Criteria
+
+- **FR-51**: GIVEN a project with 5 documents and 3 graph edges and no `mind.lock` WHEN `mind reconcile` is run THEN `mind.lock` is created with all entries having stale=false.
+- **FR-52**: GIVEN `mind.lock` exists and `requirements.md` has changed and `architecture.md` depends on it WHEN `mind reconcile --check` is run THEN exit code is 4, `architecture.md` is listed as stale, and `mind.lock` is unchanged.
+- **FR-53**: GIVEN `mind.lock` with 2 stale entries WHEN `mind reconcile --force` is run THEN `mind.lock` is rewritten with all entries stale=false and fresh hashes.
+- **FR-54**: GIVEN edges brief --> requirements --> architecture WHEN `mind reconcile --graph` is run THEN output shows an ASCII tree with the dependency hierarchy and edge type labels.
+- **FR-55**: GIVEN 1 changed and 2 stale documents WHEN `mind reconcile --json` is run THEN JSON contains status "STALE" and stats.stale equals 2.
+- **FR-56**: GIVEN a project with no `mind.toml` WHEN `mind reconcile` is run THEN exit code is 3 with "mind.toml required" in stderr.
+- **FR-57**: GIVEN a file with `\r\n` line endings WHEN hashed THEN the hash includes the `\r` bytes (no normalization).
+- **FR-58**: GIVEN 50 documents with 49 unchanged mtime WHEN `mind reconcile` runs THEN exactly 1 hash computation occurs.
+- **FR-59**: GIVEN an empty file WHEN hashed THEN result is `sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- **FR-60**: GIVEN 4 `[[graph]]` entries WHEN the graph is built THEN it contains 4 forward edges, 4 reverse edges, and the correct node set.
+- **FR-61**: GIVEN an edge A --(requires)--> B where A changes WHEN propagation runs THEN B's stale reason contains "prerequisite changed".
+- **FR-62**: GIVEN edges A --> B --> C --> A WHEN `mind reconcile` runs THEN exit code is 2 with the full cycle path in stderr.
+- **FR-63**: GIVEN a `[[graph]]` entry referencing `doc:spec/nonexistent` not in `[documents]` WHEN `mind reconcile` runs THEN exit code is 3 with error about undeclared document.
+- **FR-64**: GIVEN 5 documents and zero `[[graph]]` entries WHEN 1 document changes between reconciliation runs THEN it is reported as changed with no stale documents.
+- **FR-65**: GIVEN A --> B where B changes WHEN propagation runs THEN A is not stale.
+- **FR-66**: GIVEN A --> B --> C where A changes WHEN propagation runs THEN both B and C are stale with transitive path in C's reason.
+- **FR-67**: GIVEN a chain A1 --> A2 --> ... --> A12 where A1 changes WHEN propagation runs THEN A2-A11 are stale, A12 is not, and a depth limit warning is emitted.
+- **FR-68**: GIVEN A --> B where both A and B changed WHEN propagation runs THEN neither is marked stale.
+- **FR-69**: GIVEN a diamond A --> B, A --> C, B --> D, C --> D where A changes WHEN propagation runs THEN D is stale exactly once.
+- **FR-70**: GIVEN project at `/path/to/project` WHEN `mind reconcile` runs THEN `mind.lock` is at `/path/to/project/mind.lock`.
+- **FR-71**: GIVEN `mind.lock` exists WHEN parsed THEN it contains generated_at, status, stats, and entries with all specified fields.
+- **FR-72**: GIVEN `mind.lock` content WHEN read, parsed, serialized THEN output is byte-identical to input.
+- **FR-73**: GIVEN reconciliation writes `mind.lock` THEN it writes to `mind.lock.tmp` first and renames atomically.
+- **FR-74**: GIVEN no `mind.lock` WHEN `mind reconcile` runs THEN lock is created with all stale=false and status CLEAN.
+- **FR-75**: GIVEN 2 stub and 3 non-stub documents WHEN reconciliation runs THEN stub entries have is_stub=true.
+- **FR-76**: GIVEN 0 stale and 0 missing THEN status is CLEAN. GIVEN 0 stale and 1 missing THEN status is DIRTY. GIVEN 2 stale THEN status is STALE.
+- **FR-77**: GIVEN `mind.lock` with 2 stale entries WHEN `mind status` runs THEN output includes staleness section. GIVEN no `mind.lock` WHEN `mind status` runs THEN no staleness section.
+- **FR-78**: GIVEN `mind.lock` with status STALE WHEN `mind status --json` runs THEN JSON contains staleness object. GIVEN no `mind.lock` THEN staleness is null.
+- **FR-79**: GIVEN 2 stale documents WHEN `mind check all` runs THEN reconcile suite shows 2 WARN checks and exit is 0. WHEN `mind check all --strict` runs THEN exit is 1.
+- **FR-80**: GIVEN `[[graph]]` entries exist WHEN `mind check all --json` runs THEN suites array contains a "reconcile" entry.
+- **FR-81**: GIVEN `mind.lock` with 2 stale entries WHEN `mind doctor` runs THEN 2 WARN findings appear with "mind reconcile --force" remediation.
+- **FR-82**: GIVEN stale documents WHEN `mind reconcile --check` runs THEN exit is 4. GIVEN no stale THEN exit is 0.
+- **FR-83**: GIVEN `[[graph]]` with from/to/type fields WHEN config is parsed THEN Config.Graph contains correct GraphEdge structs.
+- **FR-84**: GIVEN `[[graph]]` with `type = "invalid"` WHEN `mind check config` runs THEN a FAIL-level result reports invalid edge type.
+- **FR-85**: GIVEN `docs/spec/notes.md` exists but is not in `[documents]` WHEN `mind reconcile` runs THEN a warning about the undeclared file appears.
+- **FR-86**: GIVEN 50 documents and 40 edges WHEN `mind reconcile --force` runs THEN completion time is under 200ms.
+- **FR-87**: GIVEN 50 documents with 1 changed WHEN `mind reconcile` runs THEN completion time is under 50ms.
