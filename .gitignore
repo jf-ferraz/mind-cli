@@ -1,7 +1,7 @@
 # Build output
-/.mind
-/archive
-/.claude
+.mind/
+archive/
+.claude/
 # Mind Agent Framework — volatile iteration files
 docs/iterations/**/WIP.md
 docs/iterations/**/PLAN.md
