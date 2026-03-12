@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -27,7 +26,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	fmt.Print(renderer.RenderDoctor(report))
 
 	if report.Summary.Fail > 0 {
-		os.Exit(1)
+		return exitQuiet(1)
 	}
 	return nil
 }

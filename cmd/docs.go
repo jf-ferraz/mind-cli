@@ -65,10 +65,8 @@ func init() {
 func runDocsList(cmd *cobra.Command, args []string) error {
 	// Validate zone flag if provided
 	if flagZone != "" && !domain.ValidZone(flagZone) {
-		fmt.Fprintf(os.Stderr, "Error: invalid zone %q. Valid zones: %s\n",
-			flagZone, strings.Join(domain.ZoneNames(), ", "))
-		os.Exit(1)
-		return nil
+		return exitValidation(fmt.Errorf("invalid zone %q. Valid zones: %s",
+			flagZone, strings.Join(domain.ZoneNames(), ", ")))
 	}
 
 	var allDocs []domain.Document
@@ -137,7 +135,7 @@ func runDocsStubs(cmd *cobra.Command, args []string) error {
 	fmt.Print(renderer.RenderStubList(list))
 
 	if list.Count > 0 {
-		os.Exit(1)
+		return exitQuiet(1)
 	}
 	return nil
 }
@@ -187,18 +185,16 @@ func runDocsOpen(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(matches) == 0 {
-		fmt.Fprintf(os.Stderr, "Error: no document matching %q found\n", query)
-		os.Exit(1)
-		return nil
+		return exitValidation(fmt.Errorf("no document matching %q found", query))
 	}
 
 	if len(matches) > 1 {
-		fmt.Fprintf(os.Stderr, "Error: ambiguous match for %q. Matches:\n", query)
+		var paths []string
 		for _, m := range matches {
-			fmt.Fprintf(os.Stderr, "  %s\n", m.Path)
+			paths = append(paths, m.Path)
 		}
-		os.Exit(1)
-		return nil
+		return exitValidation(fmt.Errorf("ambiguous match for %q. Matches:\n  %s",
+			query, strings.Join(paths, "\n  ")))
 	}
 
 	return openInEditor(projectRoot, matches[0].Path)
@@ -213,9 +209,7 @@ func openInEditor(root, relPath string) error {
 
 	editor := os.Getenv("EDITOR")
 	if editor == "" {
-		fmt.Fprintln(os.Stderr, "Error: $EDITOR is not set")
-		os.Exit(1)
-		return nil
+		return exitValidation(fmt.Errorf("$EDITOR is not set"))
 	}
 
 	absPath := filepath.Join(root, relPath)

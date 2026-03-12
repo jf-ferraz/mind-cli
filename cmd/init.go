@@ -52,12 +52,9 @@ func runInit(cmd *cobra.Command, args []string) error {
 	result, err := svc.Init(root, flagInitName, flagInitWithGitHub, flagInitFromExisting)
 	if err != nil {
 		if errors.Is(err, domain.ErrAlreadyInitialized) {
-			fmt.Fprintln(os.Stderr, "Error: project already initialized (.mind/ exists)")
-			os.Exit(2)
+			return exitRuntime(fmt.Errorf("project already initialized (.mind/ exists)"))
 		}
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(2)
-		return nil
+		return exitRuntime(err)
 	}
 
 	mode := render.DetectMode(flagJSON, flagNoColor)

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -58,8 +59,7 @@ manages iterations, and bridges AI agent workflows.`,
 		root, err := resolveRoot()
 		if err != nil {
 			if isNotProject(err) {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(3)
+				return exitConfig(err)
 			}
 			return err
 		}
@@ -94,8 +94,15 @@ func init() {
 // Execute runs the root command.
 func Execute() error {
 	if err := rootCmd.Execute(); err != nil {
+		var exitErr *ExitError
+		if errors.As(err, &exitErr) {
+			if !exitErr.Quiet {
+				fmt.Fprintln(os.Stderr, err)
+			}
+			os.Exit(exitErr.Code)
+		}
 		fmt.Fprintln(os.Stderr, err)
-		return err
+		os.Exit(1)
 	}
 	return nil
 }

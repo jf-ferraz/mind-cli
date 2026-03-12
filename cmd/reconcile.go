@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/jf-ferraz/mind-cli/domain"
@@ -38,9 +37,7 @@ func init() {
 
 func runReconcile(cmd *cobra.Command, args []string) error {
 	if flagReconcileCheck && flagReconcileForce {
-		fmt.Fprintln(os.Stderr, "Error: --check and --force are mutually exclusive")
-		os.Exit(2)
-		return nil
+		return exitRuntime(fmt.Errorf("--check and --force are mutually exclusive"))
 	}
 
 	opts := domain.ReconcileOpts{
@@ -56,19 +53,17 @@ func runReconcile(cmd *cobra.Command, args []string) error {
 
 	result, err := reconcileSvc.Reconcile(projectRoot, opts)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		if isConfigError(err) {
-			os.Exit(3)
+			return exitConfig(err)
 		}
-		os.Exit(2)
-		return nil
+		return exitRuntime(err)
 	}
 
 	fmt.Print(renderer.RenderReconcileResult(result))
 
 	// Exit code 4 for stale in --check mode (FR-82)
 	if opts.CheckOnly && result.Status == domain.LockStale {
-		os.Exit(4)
+		return exitStaleness(fmt.Errorf("stale documents detected"))
 	}
 
 	return nil
@@ -77,12 +72,10 @@ func runReconcile(cmd *cobra.Command, args []string) error {
 func runReconcileGraph() error {
 	graph, stale, err := reconcileSvc.LoadGraph(projectRoot)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		if isConfigError(err) {
-			os.Exit(3)
+			return exitConfig(err)
 		}
-		os.Exit(2)
-		return nil
+		return exitRuntime(err)
 	}
 
 	fmt.Print(renderer.RenderGraph(graph, stale))

@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/jf-ferraz/mind-cli/domain"
 	"github.com/spf13/cobra"
@@ -59,7 +58,7 @@ func runCheckDocs(cmd *cobra.Command, args []string) error {
 	fmt.Print(renderer.RenderValidation(&report))
 
 	if !report.Ok() {
-		os.Exit(1)
+		return exitQuiet(1)
 	}
 	return nil
 }
@@ -70,7 +69,7 @@ func runCheckRefs(cmd *cobra.Command, args []string) error {
 	fmt.Print(renderer.RenderValidation(&report))
 
 	if !report.Ok() {
-		os.Exit(1)
+		return exitQuiet(1)
 	}
 	return nil
 }
@@ -81,7 +80,7 @@ func runCheckConfig(cmd *cobra.Command, args []string) error {
 	fmt.Print(renderer.RenderValidation(&report))
 
 	if !report.Ok() {
-		os.Exit(1)
+		return exitQuiet(1)
 	}
 	return nil
 }
@@ -99,7 +98,7 @@ func runCheckAll(cmd *cobra.Command, args []string) error {
 	fmt.Print(renderer.RenderUnifiedValidation(&report))
 
 	if report.Summary.Failed > 0 {
-		os.Exit(1)
+		return exitQuiet(1)
 	}
 	return nil
 }

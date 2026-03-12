@@ -73,8 +73,7 @@ func runCreateADR(cmd *cobra.Command, args []string) error {
 	result, err := generateSvc.CreateADR(args[0])
 	if err != nil {
 		if errors.Is(err, domain.ErrAlreadyExists) {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return exitValidation(err)
 		}
 		return err
 	}
@@ -87,8 +86,7 @@ func runCreateBlueprint(cmd *cobra.Command, args []string) error {
 	result, err := generateSvc.CreateBlueprint(args[0])
 	if err != nil {
 		if errors.Is(err, domain.ErrAlreadyExists) {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return exitValidation(err)
 		}
 		return err
 	}
@@ -100,13 +98,7 @@ func runCreateBlueprint(cmd *cobra.Command, args []string) error {
 func runCreateIteration(cmd *cobra.Command, args []string) error {
 	result, err := generateSvc.CreateIteration(args[0], args[1])
 	if err != nil {
-		if errors.Is(err, domain.ErrAlreadyExists) {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-		return nil
+		return exitValidation(err)
 	}
 
 	fmt.Print(renderer.RenderCreateIterationResult(result))
@@ -117,8 +109,7 @@ func runCreateSpike(cmd *cobra.Command, args []string) error {
 	result, err := generateSvc.CreateSpike(args[0])
 	if err != nil {
 		if errors.Is(err, domain.ErrAlreadyExists) {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return exitValidation(err)
 		}
 		return err
 	}
@@ -131,8 +122,7 @@ func runCreateConvergence(cmd *cobra.Command, args []string) error {
 	result, err := generateSvc.CreateConvergence(args[0])
 	if err != nil {
 		if errors.Is(err, domain.ErrAlreadyExists) {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return exitValidation(err)
 		}
 		return err
 	}
@@ -143,15 +133,11 @@ func runCreateConvergence(cmd *cobra.Command, args []string) error {
 
 func runCreateBrief(cmd *cobra.Command, args []string) error {
 	if flagJSON {
-		fmt.Fprintln(os.Stderr, "Error: 'mind create brief' is interactive-only (--json not supported)")
-		os.Exit(1)
-		return nil
+		return exitValidation(fmt.Errorf("'mind create brief' is interactive-only (--json not supported)"))
 	}
 
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
-		fmt.Fprintln(os.Stderr, "Error: 'mind create brief' requires an interactive terminal. Edit docs/spec/project-brief.md directly.")
-		os.Exit(1)
-		return nil
+		return exitValidation(fmt.Errorf("'mind create brief' requires an interactive terminal. Edit docs/spec/project-brief.md directly."))
 	}
 
 	reader := bufio.NewReader(os.Stdin)

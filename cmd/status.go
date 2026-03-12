@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/jf-ferraz/mind-cli/domain"
 	"github.com/spf13/cobra"
@@ -48,7 +47,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		}
 	}
 	if hasIssues {
-		os.Exit(1)
+		return exitQuiet(1)
 	}
 
 	return nil

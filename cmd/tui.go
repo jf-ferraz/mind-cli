@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jf-ferraz/mind-cli/tui"
@@ -28,8 +27,7 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	root, err := resolveRoot()
 	if err != nil {
 		if isNotProject(err) {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(3)
+			return exitConfig(err)
 		}
 		return err
 	}
