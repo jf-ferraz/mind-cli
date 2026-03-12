@@ -2,38 +2,38 @@
 
 ## Active Work
 
-None — iteration 002-reconciliation-engine is complete.
+None — iteration 003-phase-2-tui-dashboard is complete.
 
 ## Known Issues
 
-- **SHOULD**: `--check` and `--force` flags not enforced as mutually exclusive in `cmd/reconcile.go` (S-1)
-- **SHOULD**: `ReconcileSuite` omits "missing documents" check specified in FR-79 (S-2)
-- **SHOULD**: Transitive propagation loses edge-type-specific reason strings at depth > 0 (S-3)
+- **SHOULD**: Editor defaults to `vi` instead of returning error when `$EDITOR` unset (S-1, tui/editor.go)
+- **SHOULD**: Preview pane uses raw content instead of Glamour rendering (S-2, tui/docs.go)
+- **SHOULD**: Status bar lacks cursor position info for lists (S-3, tui/statusbar.go)
+- **SHOULD**: 9 component files inlined into tab views instead of separate files (S-4)
+- **SHOULD**: FR-88 (--check/--force exclusion) tested by code inspection only — no unit test (S-5)
+- **SHOULD**: Transitive propagation loses edge-type-specific reason strings at depth > 0 (S-3 from Phase 1.5)
 - **SHOULD**: `--project` flag should be `--project-root` per api-contracts spec
-- **SHOULD**: `docs search` bypasses DocRepo abstraction (C-9 deviation)
 - **SHOULD**: 5 exported methods in fs/doc_repo.go lack GoDoc comments (NFR-8)
-- **SHOULD**: Repo wiring in command handlers instead of main.go (C-10 deviation, acknowledged — partially fixed by wiring centralization in Phase 1.5)
 - **COULD**: DoctorService reimplements checks instead of delegating to ValidationService
-- **COULD**: Graph rendering is flat adjacency list rather than rooted tree (C-1)
-- **COULD**: `isConfigError` uses string matching rather than typed errors (C-2)
+- **COULD**: Graph rendering is flat adjacency list rather than rooted tree
+- **COULD**: Quality tab uses fixed Y-axis scale (C-2)
 
 ## Recent Changes
 
+- **2026-03-11** — Phase 2 TUI Dashboard implemented (@iteration/003)
+  - 37 FRs implemented (FR-88–FR-124) across 26 new files, 12 modified files
+  - 374 tests, all passing (128 new tests added by tester)
+  - 4 SHOULD fixes: flag exclusion, missing docs check, BuildDeps wiring, search abstraction
+  - `mind tui` command with 5-tab Bubble Tea dashboard
+  - New deps: bubbletea, bubbles, glamour
+  - domain/ 100% coverage, tui/components/ 96.3%, tui/ 62.8%
 - **2026-03-11** — Phase 1.5 Reconciliation Engine implemented (@iteration/002)
-  - 37 FRs implemented (FR-51–FR-87) across 20 new files, 18 modified files
-  - 246 tests, all passing (82 new tests added by tester)
-  - Reconciliation engine: hash, graph, propagation, lock lifecycle
-  - `mind reconcile` command with `--check`, `--force`, `--graph` flags
-  - Integration with `mind status`, `mind check all`, `mind doctor`
-  - Wiring centralization via PersistentPreRunE in cmd/root.go
-  - Performance: full <200ms (actual ~1.1ms), incremental <50ms (actual ~0.45ms)
+  - 37 FRs (FR-51–FR-87), 246 tests, reconciliation engine
 - **2026-03-11** — Phase 1 Core CLI implemented (@iteration/001)
-  - 50 FRs implemented across 20+ commands
-  - 395 tests, all passing
-  - domain/ 100% coverage, validate/ 90.7%
+  - 50 FRs, 395 tests, full CLI command surface
 
 ## Next Priorities
 
-- Fix SHOULD items S-1, S-2, S-3 from Phase 1.5 reviewer
-- Fix remaining Phase 1 SHOULD items (flag rename, GoDoc, search abstraction)
-- Phase 2: TUI dashboard, interactive mode enhancements
+- Fix SHOULD items from Phase 2 reviewer (Glamour preview, editor error, status bar)
+- Fix remaining deferred SHOULD items (transitive reasons, flag rename, GoDoc)
+- Phase 3: AI Bridge (Pre-Flight + MCP server)
