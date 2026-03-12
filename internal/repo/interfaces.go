@@ -44,6 +44,15 @@ type IterationRepo interface {
 type StateRepo interface {
 	// ReadWorkflow parses docs/state/workflow.md into structured state.
 	ReadWorkflow() (*domain.WorkflowState, error)
+
+	// WriteWorkflow persists workflow state to docs/state/workflow.md.
+	// Passing nil or an idle state writes an idle marker.
+	WriteWorkflow(state *domain.WorkflowState) error
+
+	// AppendCurrentState appends a completed iteration entry to docs/state/current.md.
+	// The entry is inserted after the "## Recent Changes" section header.
+	// Returns an error if iter is nil or the file does not exist.
+	AppendCurrentState(iter *domain.Iteration) error
 }
 
 // ConfigRepo reads project and framework configuration.

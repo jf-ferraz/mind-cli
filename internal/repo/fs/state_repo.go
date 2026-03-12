@@ -2,10 +2,12 @@ package fs
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jf-ferraz/mind-cli/domain"
 )
@@ -121,4 +123,81 @@ func (r *StateRepo) ReadWorkflow() (*domain.WorkflowState, error) {
 	}
 
 	return state, nil
+}
+
+// AppendCurrentState appends a completed iteration entry to docs/state/current.md.
+func (r *StateRepo) AppendCurrentState(iter *domain.Iteration) error {
+	if iter == nil {
+		return fmt.Errorf("iter must not be nil")
+	}
+	currentPath := filepath.Join(r.projectRoot, "docs", "state", "current.md")
+	data, err := os.ReadFile(currentPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("docs/state/current.md does not exist: %w", err)
+		}
+		return err
+	}
+
+	content := string(data)
+	entry := fmt.Sprintf("- **%s** — %s completed (@iteration/%03d)\n",
+		currentDate(),
+		iter.DirName,
+		iter.Seq,
+	)
+
+	const marker = "## Recent Changes\n"
+	if idx := strings.Index(content, marker); idx >= 0 {
+		insertAt := idx + len(marker) + 1 // after the blank line following the header
+		if insertAt > len(content) {
+			insertAt = len(content)
+		}
+		content = content[:insertAt] + entry + content[insertAt:]
+	} else {
+		content += "\n## Recent Changes\n\n" + entry
+	}
+
+	return os.WriteFile(currentPath, []byte(content), 0644)
+}
+
+// WriteWorkflow persists workflow state to docs/state/workflow.md.
+// Passing nil writes an idle marker.
+func (r *StateRepo) WriteWorkflow(state *domain.WorkflowState) error {
+	path := filepath.Join(r.projectRoot, "docs", "state", "workflow.md")
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("create state dir: %w", err)
+	}
+
+	var b strings.Builder
+	b.WriteString("# Workflow State\n\n")
+
+	if state == nil || state.IsIdle() {
+		b.WriteString("| Key | Value |\n")
+		b.WriteString("|-----|-------|\n")
+		b.WriteString("| type | |\n")
+		b.WriteString("| descriptor | |\n")
+		return os.WriteFile(path, []byte(b.String()), 0644)
+	}
+
+	b.WriteString("| Key | Value |\n")
+	b.WriteString("|-----|-------|\n")
+	b.WriteString(fmt.Sprintf("| type | %s |\n", state.Type))
+	b.WriteString(fmt.Sprintf("| descriptor | %s |\n", state.Descriptor))
+	b.WriteString(fmt.Sprintf("| iteration_path | %s |\n", state.IterationPath))
+	b.WriteString(fmt.Sprintf("| branch | %s |\n", state.Branch))
+	b.WriteString(fmt.Sprintf("| last_agent | %s |\n", state.LastAgent))
+	b.WriteString(fmt.Sprintf("| remaining_chain | %s |\n", strings.Join(state.RemainingChain, ", ")))
+	b.WriteString(fmt.Sprintf("| session | %d |\n", state.Session))
+	b.WriteString(fmt.Sprintf("| total_sessions | %d |\n", state.TotalSessions))
+
+	if state.HandoffContext != "" {
+		b.WriteString("\n## Handoff Context\n\n")
+		b.WriteString(state.HandoffContext + "\n")
+	}
+
+	return os.WriteFile(path, []byte(b.String()), 0644)
+}
+
+func currentDate() string {
+	return time.Now().Format("2006-01-02")
 }
