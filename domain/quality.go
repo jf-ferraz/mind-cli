@@ -42,12 +42,12 @@ type QualityDimension struct {
 	Value int    `json:"value" yaml:"value"`
 }
 
-// Standard quality dimension names.
+// Standard quality dimension names aligned with the conversation workflow rubric.
 const (
-	DimRigor         = "rigor"
-	DimCoverage      = "coverage"
-	DimActionability = "actionability"
-	DimObjectivity   = "objectivity"
-	DimConvergence   = "convergence"
-	DimDepth         = "depth"
+	DimPerspectiveDiversity    = "perspective_diversity"
+	DimEvidenceQuality         = "evidence_quality"
+	DimConcessionDepth         = "concession_depth"
+	DimChallengeSubstantiveness = "challenge_substantiveness"
+	DimSynthesisQuality        = "synthesis_quality"
+	DimActionability           = "actionability"
 )

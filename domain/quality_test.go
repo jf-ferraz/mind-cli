@@ -16,12 +16,12 @@ func validEntry() domain.QualityEntry {
 		Score:    4.0,
 		GatePass: true,
 		Dimensions: []domain.QualityDimension{
-			{Name: domain.DimRigor, Value: 4},
-			{Name: domain.DimCoverage, Value: 4},
+			{Name: domain.DimPerspectiveDiversity, Value: 4},
+			{Name: domain.DimEvidenceQuality, Value: 4},
+			{Name: domain.DimConcessionDepth, Value: 4},
+			{Name: domain.DimChallengeSubstantiveness, Value: 4},
+			{Name: domain.DimSynthesisQuality, Value: 4},
 			{Name: domain.DimActionability, Value: 4},
-			{Name: domain.DimObjectivity, Value: 4},
-			{Name: domain.DimConvergence, Value: 4},
-			{Name: domain.DimDepth, Value: 4},
 		},
 		Personas:   []string{"moderator", "analyst", "architect"},
 		OutputPath: "docs/knowledge/auth-strategy-convergence.md",
@@ -156,15 +156,15 @@ func TestQualityEntry_Validate_ValidEntry(t *testing.T) {
 	}
 }
 
-// Dimension constants have correct values.
+// Dimension constants have correct values aligned with the conversation workflow rubric.
 func TestQualityDimensionConstants(t *testing.T) {
 	expected := map[string]string{
-		"rigor":         domain.DimRigor,
-		"coverage":      domain.DimCoverage,
-		"actionability": domain.DimActionability,
-		"objectivity":   domain.DimObjectivity,
-		"convergence":   domain.DimConvergence,
-		"depth":         domain.DimDepth,
+		"perspective_diversity":    domain.DimPerspectiveDiversity,
+		"evidence_quality":         domain.DimEvidenceQuality,
+		"concession_depth":         domain.DimConcessionDepth,
+		"challenge_substantiveness": domain.DimChallengeSubstantiveness,
+		"synthesis_quality":        domain.DimSynthesisQuality,
+		"actionability":            domain.DimActionability,
 	}
 	for want, got := range expected {
 		if got != want {
