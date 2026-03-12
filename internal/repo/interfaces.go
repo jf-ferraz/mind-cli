@@ -21,6 +21,11 @@ type DocRepo interface {
 
 	// IsDir checks if a path is a directory.
 	IsDir(relPath string) bool
+
+	// Search returns documents whose content matches the query string.
+	// Search is case-insensitive substring matching across all .md files in docs/.
+	// Each result includes matching lines with 1 line of context.
+	Search(query string) (*domain.SearchResults, error)
 }
 
 // IterationRepo manages iteration folders.

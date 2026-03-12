@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
@@ -144,64 +143,10 @@ func runDocsStubs(cmd *cobra.Command, args []string) error {
 }
 
 func runDocsSearch(cmd *cobra.Command, args []string) error {
-	query := strings.ToLower(args[0])
-	results := &domain.SearchResults{Query: args[0]}
-
-	docsDir := filepath.Join(projectRoot, "docs")
-	err := filepath.WalkDir(docsDir, func(path string, d os.DirEntry, walkErr error) error {
-		if walkErr != nil || d.IsDir() {
-			return walkErr
-		}
-		if filepath.Ext(path) != ".md" {
-			return nil
-		}
-
-		f, err := os.Open(path)
-		if err != nil {
-			return nil
-		}
-		defer f.Close()
-
-		relPath, _ := filepath.Rel(projectRoot, path)
-		var matches []domain.SearchMatch
-		var lines []string
-
-		scanner := bufio.NewScanner(f)
-		for scanner.Scan() {
-			lines = append(lines, scanner.Text())
-		}
-
-		for i, line := range lines {
-			if strings.Contains(strings.ToLower(line), query) {
-				match := domain.SearchMatch{
-					Line: i + 1,
-					Text: line,
-				}
-				if i > 0 {
-					match.ContextBefore = lines[i-1]
-				}
-				if i < len(lines)-1 {
-					match.ContextAfter = lines[i+1]
-				}
-				matches = append(matches, match)
-			}
-		}
-
-		if len(matches) > 0 {
-			results.Results = append(results.Results, domain.SearchFileResult{
-				Path:    relPath,
-				Matches: matches,
-			})
-			results.TotalMatches += len(matches)
-			results.FilesMatched++
-		}
-
-		return nil
-	})
+	results, err := docRepo.Search(args[0])
 	if err != nil {
 		return fmt.Errorf("search docs: %w", err)
 	}
-
 	fmt.Print(renderer.RenderSearchResults(results))
 	return nil
 }

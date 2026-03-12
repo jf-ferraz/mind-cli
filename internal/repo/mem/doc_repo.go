@@ -1,6 +1,8 @@
 package mem
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"strings"
 
@@ -76,4 +78,50 @@ func (r *DocRepo) IsStub(relPath string) (bool, error) {
 // IsDir checks if a path is a directory.
 func (r *DocRepo) IsDir(relPath string) bool {
 	return r.Dirs[relPath]
+}
+
+// Search performs case-insensitive substring search across all stored files.
+func (r *DocRepo) Search(query string) (*domain.SearchResults, error) {
+	queryLower := strings.ToLower(query)
+	results := &domain.SearchResults{Query: query}
+
+	for relPath, content := range r.Files {
+		if !strings.HasSuffix(relPath, ".md") {
+			continue
+		}
+		var matches []domain.SearchMatch
+		var lines []string
+
+		scanner := bufio.NewScanner(bytes.NewReader(content))
+		for scanner.Scan() {
+			lines = append(lines, scanner.Text())
+		}
+
+		for i, line := range lines {
+			if strings.Contains(strings.ToLower(line), queryLower) {
+				match := domain.SearchMatch{
+					Line: i + 1,
+					Text: line,
+				}
+				if i > 0 {
+					match.ContextBefore = lines[i-1]
+				}
+				if i < len(lines)-1 {
+					match.ContextAfter = lines[i+1]
+				}
+				matches = append(matches, match)
+			}
+		}
+
+		if len(matches) > 0 {
+			results.Results = append(results.Results, domain.SearchFileResult{
+				Path:    relPath,
+				Matches: matches,
+			})
+			results.TotalMatches += len(matches)
+			results.FilesMatched++
+		}
+	}
+
+	return results, nil
 }
