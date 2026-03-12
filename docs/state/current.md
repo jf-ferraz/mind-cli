@@ -2,13 +2,11 @@
 
 ## Active Work
 
-None — iteration 004-pre-phase-3-cleanup is complete.
+None — iteration 005-phase-3-review-and-remediation is complete.
 
 ## Known Issues
 
-- **SHOULD**: Editor defaults to `vi` instead of returning error when `$EDITOR` unset (S-1, tui/editor.go)
-- **SHOULD**: Preview pane uses raw content instead of Glamour rendering (S-2, tui/docs.go)
-- **SHOULD**: Status bar lacks cursor position info for lists (S-3, tui/statusbar.go)
+- **SHOULD**: Preview pane uses raw content instead of Glamour rendering (S-2, tui/docs.go) — requires new glamour dependency
 - **SHOULD**: 9 component files inlined into tab views instead of separate files (S-4)
 - **SHOULD**: FR-88 (--check/--force exclusion) tested by code inspection only — no unit test (S-5)
 - **SHOULD**: `ProjectService.DetectProject()` delegates to `fs.DetectProject()` — should use interface (reviewer S-1, iteration 004)
@@ -16,9 +14,33 @@ None — iteration 004-pre-phase-3-cleanup is complete.
 - **COULD**: DoctorService reimplements checks instead of delegating to ValidationService
 - **COULD**: Graph rendering is flat adjacency list rather than rooted tree
 - **COULD**: Quality tab uses fixed Y-axis scale (C-2)
+- **COULD**: `mind preflight` prompt includes descriptor slug, not raw user request string in the /workflow suggestion
 
 ## Recent Changes
 
+- **2026-03-12** — Phase 3 Review and Remediation complete (@iteration/005-remediation)
+  - MCP `notifications/initialized` protocol fix (M-1, FR-140): server now returns nil for all `notifications/*` methods
+  - Quality dimension constants aligned with conversation rubric (M-2, FR-141): 5 renames in `domain/quality.go`, parsing regex updated
+  - Test coverage added for all Phase 3 packages (M-3): `internal/mcp` 80.3%, `internal/orchestrate` 81.2%, `internal/service/quality` 85%+
+  - `HandoffService` extracted to `internal/orchestrate/handoff.go` (FR-146) — dead `PreflightService.Handoff()` stub removed
+  - `StateRepo.AppendCurrentState()` added (FR-145) — layer violation in `cmd/handoff.go` resolved
+  - Preflight blocks on hard doc failures (`docsReport.Failed > 0`, FR-147)
+  - `branchAhead()` uses `mind.toml` `governance.default-branch` setting (FR-148)
+  - COULD: `classify.go` adapter, stdlib cleanup, `mind preflight --json` support (FR-149–FR-151)
+- **2026-03-12** — Phase 3 AI Bridge implemented (@iteration/005)
+  - Model A: `mind preflight "<request>"` — 7-step pre-flight (classify, brief gate, validate docs, create iteration, git branch, write state, generate prompt)
+  - Model A: `mind preflight --resume` — detect in-progress workflow from workflow.md
+  - Model A: `mind handoff <iter-id>` — 5-step post-workflow (validate artifacts, run gate, update current.md, clear state, branch report)
+  - Model B: `mind serve` — MCP server (JSON-RPC 2.0, stdio, 16 tools)
+  - `.mcp.json` — Claude Code auto-discovery config
+  - New packages: `internal/orchestrate/`, `internal/mcp/`
+  - New domain type: `domain.GateResult` / `domain.GateCommandResult`
+  - `StateRepo` extended with `WriteWorkflow()` (fs + mem implementations)
+  - `WorkflowService` extended with `UpdateState()` and `Show()`
+  - `ProjectService` extended with `ListStubs()`, `SearchDocs()`, `Config()`, `CheckBrief()`, `SuggestNext()`
+  - `ValidationService` extended with `RunGate()` (executes build/lint/test from mind.toml)
+  - New `QualityService` with `Log()` (parse convergence files → quality-log.yml)
+  - Step 0 TUI fixes: S-1 (`$EDITOR` unset → error), S-3 (status bar cursor position)
 - **2026-03-11** — Pre-Phase 3 Cleanup implemented (@iteration/004)
   - 15 FRs implemented (FR-125–FR-139) across 4 new files, 14 modified files
   - Deps struct migrated from concrete `*fs.` types to `repo.` interfaces (FR-125, FR-137)
@@ -43,5 +65,5 @@ None — iteration 004-pre-phase-3-cleanup is complete.
 
 ## Next Priorities
 
-- Fix remaining SHOULD items (Glamour preview, editor error, status bar)
-- Phase 3: AI Bridge (Pre-Flight + MCP server)
+- Phase 4: Watch + Orchestration (Model C/D)
+- Fix remaining SHOULD/COULD items as bandwidth allows
