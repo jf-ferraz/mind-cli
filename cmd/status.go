@@ -4,8 +4,6 @@ import (
 	"fmt"
 
 	"github.com/jf-ferraz/mind-cli/domain"
-	"github.com/jf-ferraz/mind-cli/internal/render"
-	"github.com/jf-ferraz/mind-cli/internal/repo/fs"
 	"github.com/spf13/cobra"
 )
 
@@ -20,69 +18,37 @@ func init() {
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
-	root, err := resolveRoot()
+	project, err := projectSvc.DetectProject(projectRoot)
 	if err != nil {
 		return err
 	}
 
-	project, err := fs.DetectProject(root)
+	health, err := projectSvc.AssembleHealth(project)
 	if err != nil {
 		return err
 	}
 
-	docRepo := fs.NewDocRepo(root)
-	iterRepo := fs.NewIterationRepo(root)
-	briefRepo := fs.NewBriefRepo(docRepo)
-
-	health := &domain.ProjectHealth{
-		Project: *project,
-		Zones:   make(map[domain.Zone]domain.ZoneHealth),
+	// Staleness panel: read existing lock data (FR-77, does NOT trigger reconciliation)
+	staleness, err := reconcileSvc.ReadStaleness(projectRoot)
+	if err == nil && staleness != nil {
+		health.Staleness = staleness
 	}
 
-	// Brief status
-	if brief, err := briefRepo.ParseBrief(); err == nil {
-		health.Brief = *brief
-	}
+	fmt.Print(renderer.RenderHealth(health))
 
-	// Zone health
-	for _, zone := range domain.AllZones {
-		docs, err := docRepo.ListByZone(zone)
-		if err != nil {
-			continue
-		}
-		zh := domain.ZoneHealth{Zone: zone, Total: len(docs)}
-		for _, doc := range docs {
-			if doc.IsStub {
-				zh.Stubs++
-			} else {
-				zh.Complete++
-			}
-			zh.Present++
-		}
-		health.Zones[zone] = zh
+	// Exit code 1 if issues found
+	hasIssues := false
+	if health.Brief.GateResult == domain.BriefMissing {
+		hasIssues = true
 	}
-
-	// Last iteration
-	iterations, err := iterRepo.List()
-	if err == nil && len(iterations) > 0 {
-		health.LastIteration = &iterations[0]
-	}
-
-	// Warnings
-	if !health.Brief.Exists {
-		health.Warnings = append(health.Warnings, "Project brief missing — run /discover or create docs/spec/project-brief.md")
-	} else if health.Brief.IsStub {
-		health.Warnings = append(health.Warnings, "Project brief is a stub — fill in Vision, Key Deliverables, and Scope")
-	}
-
-	for zone, zh := range health.Zones {
+	for _, zh := range health.Zones {
 		if zh.Stubs > 0 {
-			health.Warnings = append(health.Warnings, fmt.Sprintf("%s/ has %d stub file(s)", zone, zh.Stubs))
+			hasIssues = true
 		}
 	}
+	if hasIssues {
+		return exitQuiet(1)
+	}
 
-	mode := render.DetectMode(flagJSON, flagNoColor)
-	r := render.New(mode, render.TermWidth())
-	fmt.Print(r.RenderHealth(health))
 	return nil
 }

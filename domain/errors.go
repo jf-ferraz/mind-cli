@@ -12,6 +12,12 @@ var ErrNotProject = errors.New("not a Mind project (no .mind/ directory found)")
 // ErrBriefMissing signals a missing project brief for gate enforcement.
 var ErrBriefMissing = errors.New("project brief missing — run /discover or create docs/spec/project-brief.md")
 
+// ErrAlreadyInitialized signals that the project is already initialized.
+var ErrAlreadyInitialized = errors.New("project already initialized (.mind/ exists)")
+
+// ErrAlreadyExists signals that a target file or directory already exists.
+var ErrAlreadyExists = errors.New("target already exists")
+
 // ErrGateFailed signals a quality gate failure.
 type ErrGateFailed struct {
 	Gate     string

@@ -14,14 +14,14 @@ const (
 
 // Document represents a single documentation file.
 type Document struct {
-	Path    string    // Relative to project root
-	AbsPath string    // Absolute path
-	Zone    Zone      // Which zone it belongs to
-	Name    string    // Filename without extension
-	Size    int64     // Bytes
-	ModTime time.Time // Last modification time
-	IsStub  bool      // Detected by stub analysis
-	Status  DocStatus // Inferred or from mind.toml
+	Path    string    `json:"path"`
+	AbsPath string    `json:"-"`
+	Zone    Zone      `json:"zone"`
+	Name    string    `json:"name"`
+	Size    int64     `json:"size"`
+	ModTime time.Time `json:"mod_time"`
+	IsStub  bool      `json:"is_stub"`
+	Status  DocStatus `json:"status"`
 }
 
 // BriefGate classifies the project brief for the business context gate.
@@ -35,11 +35,11 @@ const (
 
 // Brief represents a parsed project brief with section detection.
 type Brief struct {
-	Path            string
-	Exists          bool
-	IsStub          bool
-	HasVision       bool
-	HasDeliverables bool
-	HasScope        bool
-	GateResult      BriefGate
+	Path            string    `json:"path"`
+	Exists          bool      `json:"exists"`
+	IsStub          bool      `json:"is_stub"`
+	HasVision       bool      `json:"has_vision"`
+	HasDeliverables bool      `json:"has_deliverables"`
+	HasScope        bool      `json:"has_scope"`
+	GateResult      BriefGate `json:"gate"`
 }

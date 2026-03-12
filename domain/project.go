@@ -4,29 +4,30 @@ import "time"
 
 // Project represents a Mind Framework project detected on disk.
 type Project struct {
-	Root      string  // Absolute path to project root (where .mind/ lives)
-	Name      string  // From mind.toml [project].name
-	Config    *Config // Parsed mind.toml (nil if file doesn't exist)
-	Framework string  // Framework version from .mind/CHANGELOG.md
-	DocsRoot  string  // Root + "/docs"
-	MindRoot  string  // Root + "/.mind"
+	Root      string  `json:"root"`
+	Name      string  `json:"name"`
+	Config    *Config `json:"-"`
+	Framework string  `json:"framework_version,omitempty"`
+	DocsRoot  string  `json:"-"`
+	MindRoot  string  `json:"-"`
 }
 
 // Config represents the parsed mind.toml manifest.
 type Config struct {
-	Manifest   Manifest            `toml:"manifest"`
-	Project    ProjectMeta         `toml:"project"`
-	Profiles   Profiles            `toml:"profiles"`
+	Manifest   Manifest                       `toml:"manifest"`
+	Project    ProjectMeta                    `toml:"project"`
+	Profiles   Profiles                       `toml:"profiles"`
 	Documents  map[string]map[string]DocEntry `toml:"documents"`
-	Governance Governance          `toml:"governance"`
+	Governance Governance                     `toml:"governance"`
+	Graph      []GraphEdge                    `toml:"graph"`
 }
 
 // Manifest tracks schema version and update time.
 type Manifest struct {
-	Schema     string            `toml:"schema"`
-	Generation int               `toml:"generation"`
-	Updated    time.Time         `toml:"updated"`
-	Invariants map[string]bool   `toml:"invariants"`
+	Schema     string          `toml:"schema"`
+	Generation int             `toml:"generation"`
+	Updated    time.Time       `toml:"updated"`
+	Invariants map[string]bool `toml:"invariants"`
 }
 
 // ProjectMeta holds project-level metadata.
@@ -73,4 +74,5 @@ type Governance struct {
 	ReviewPolicy   string `toml:"review-policy"`
 	CommitPolicy   string `toml:"commit-policy"`
 	BranchStrategy string `toml:"branch-strategy"`
+	DefaultBranch  string `toml:"default-branch"`
 }

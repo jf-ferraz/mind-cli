@@ -21,6 +21,11 @@ type DocRepo interface {
 
 	// IsDir checks if a path is a directory.
 	IsDir(relPath string) bool
+
+	// Search returns documents whose content matches the query string.
+	// Search is case-insensitive substring matching across all .md files in docs/.
+	// Each result includes matching lines with 1 line of context.
+	Search(query string) (*domain.SearchResults, error)
 }
 
 // IterationRepo manages iteration folders.
@@ -39,16 +44,47 @@ type IterationRepo interface {
 type StateRepo interface {
 	// ReadWorkflow parses docs/state/workflow.md into structured state.
 	ReadWorkflow() (*domain.WorkflowState, error)
+
+	// WriteWorkflow persists workflow state to docs/state/workflow.md.
+	// Passing nil or an idle state writes an idle marker.
+	WriteWorkflow(state *domain.WorkflowState) error
+
+	// AppendCurrentState appends a completed iteration entry to docs/state/current.md.
+	// The entry is inserted after the "## Recent Changes" section header.
+	// Returns an error if iter is nil or the file does not exist.
+	AppendCurrentState(iter *domain.Iteration) error
 }
 
 // ConfigRepo reads project and framework configuration.
 type ConfigRepo interface {
 	// ReadProjectConfig parses mind.toml.
 	ReadProjectConfig() (*domain.Config, error)
+
+	// WriteProjectConfig writes mind.toml.
+	WriteProjectConfig(cfg *domain.Config) error
+}
+
+// LockRepo manages the mind.lock reconciliation state file.
+type LockRepo interface {
+	// Read loads mind.lock. Returns nil, nil if file does not exist.
+	Read() (*domain.LockFile, error)
+
+	// Write persists the lock file atomically (write to temp, rename).
+	Write(lock *domain.LockFile) error
+
+	// Exists returns true if mind.lock exists on disk.
+	Exists() bool
 }
 
 // BriefRepo handles project brief parsing and validation.
 type BriefRepo interface {
 	// ParseBrief reads and analyzes the project brief.
 	ParseBrief() (*domain.Brief, error)
+}
+
+// QualityRepo reads quality log data.
+type QualityRepo interface {
+	// ReadLog returns all quality entries from quality-log.yml, ordered by date.
+	// Returns empty slice and nil error if the file does not exist.
+	ReadLog() ([]domain.QualityEntry, error)
 }

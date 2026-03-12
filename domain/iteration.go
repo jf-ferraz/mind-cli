@@ -35,14 +35,14 @@ type Artifact struct {
 
 // Iteration represents a single workflow iteration folder.
 type Iteration struct {
-	Seq        int             // Sequence number (1, 2, 3...)
-	Type       RequestType     // NEW_PROJECT, BUG_FIX, etc.
-	Descriptor string          // Kebab-case slug
-	DirName    string          // Full directory name: "001-NEW_PROJECT-rest-api"
-	Path       string          // Absolute path to iteration directory
-	Artifacts  []Artifact      // Files in the iteration folder
-	Status     IterationStatus // Derived from artifact presence
-	CreatedAt  time.Time       // From overview.md mod time
+	Seq        int             `json:"seq"`
+	Type       RequestType     `json:"type"`
+	Descriptor string          `json:"descriptor"`
+	DirName    string          `json:"dir_name"`
+	Path       string          `json:"-"`
+	Artifacts  []Artifact      `json:"artifacts,omitempty"`
+	Status     IterationStatus `json:"status"`
+	CreatedAt  time.Time       `json:"created_at"`
 }
 
 // ExpectedArtifacts are the files expected in an iteration folder.

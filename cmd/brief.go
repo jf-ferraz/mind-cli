@@ -3,8 +3,6 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/jf-ferraz/mind-cli/internal/render"
-	"github.com/jf-ferraz/mind-cli/internal/repo/fs"
 	"github.com/spf13/cobra"
 )
 
@@ -19,20 +17,11 @@ func init() {
 }
 
 func runBrief(cmd *cobra.Command, args []string) error {
-	root, err := resolveRoot()
-	if err != nil {
-		return err
-	}
-
-	docRepo := fs.NewDocRepo(root)
-	briefRepo := fs.NewBriefRepo(docRepo)
 	brief, err := briefRepo.ParseBrief()
 	if err != nil {
 		return fmt.Errorf("failed to parse brief: %w", err)
 	}
 
-	mode := render.DetectMode(flagJSON, flagNoColor)
-	r := render.New(mode, render.TermWidth())
-	fmt.Print(r.RenderBrief(brief))
+	fmt.Print(renderer.RenderBrief(brief))
 	return nil
 }

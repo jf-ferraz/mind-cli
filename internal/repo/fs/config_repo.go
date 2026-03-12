@@ -33,3 +33,13 @@ func (r *ConfigRepo) ReadProjectConfig() (*domain.Config, error) {
 
 	return &cfg, nil
 }
+
+// WriteProjectConfig writes mind.toml.
+func (r *ConfigRepo) WriteProjectConfig(cfg *domain.Config) error {
+	path := filepath.Join(r.projectRoot, "mind.toml")
+	data, err := toml.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0644)
+}

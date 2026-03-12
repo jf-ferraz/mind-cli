@@ -2,13 +2,76 @@ package fs
 
 import (
 	"bufio"
-	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/jf-ferraz/mind-cli/domain"
+	"github.com/jf-ferraz/mind-cli/internal/repo"
 )
+
+// Search performs case-insensitive substring search across all .md files in docs/.
+// Returns matching lines with 1 line of context, grouped by file.
+func (r *DocRepo) Search(query string) (*domain.SearchResults, error) {
+	queryLower := strings.ToLower(query)
+	results := &domain.SearchResults{Query: query}
+
+	err := filepath.WalkDir(r.docsRoot, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil || d.IsDir() {
+			return walkErr
+		}
+		if filepath.Ext(path) != ".md" {
+			return nil
+		}
+
+		f, err := os.Open(path)
+		if err != nil {
+			return nil
+		}
+		defer f.Close()
+
+		relPath, _ := filepath.Rel(r.projectRoot, path)
+		var matches []domain.SearchMatch
+		var lines []string
+
+		scanner := bufio.NewScanner(f)
+		for scanner.Scan() {
+			lines = append(lines, scanner.Text())
+		}
+
+		for i, line := range lines {
+			if strings.Contains(strings.ToLower(line), queryLower) {
+				match := domain.SearchMatch{
+					Line: i + 1,
+					Text: line,
+				}
+				if i > 0 {
+					match.ContextBefore = lines[i-1]
+				}
+				if i < len(lines)-1 {
+					match.ContextAfter = lines[i+1]
+				}
+				matches = append(matches, match)
+			}
+		}
+
+		if len(matches) > 0 {
+			results.Results = append(results.Results, domain.SearchFileResult{
+				Path:    relPath,
+				Matches: matches,
+			})
+			results.TotalMatches += len(matches)
+			results.FilesMatched++
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return results, nil
+}
 
 // DocRepo implements repo.DocRepo using the filesystem.
 type DocRepo struct {
@@ -111,58 +174,5 @@ func (r *DocRepo) IsStub(relPath string) (bool, error) {
 		return false, err
 	}
 
-	return IsStubContent(content), nil
-}
-
-// IsStubContent checks if content is a stub (only template boilerplate).
-func IsStubContent(content []byte) bool {
-	realLines := 0
-	scanner := bufio.NewScanner(bytes.NewReader(content))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if isBoilerplateLine(line) {
-			continue
-		}
-		realLines++
-	}
-	return realLines <= 2
-}
-
-func isBoilerplateLine(line string) bool {
-	if line == "" {
-		return true
-	}
-	if strings.HasPrefix(line, "#") {
-		return true
-	}
-	if strings.HasPrefix(line, "<!--") || strings.HasPrefix(line, "-->") {
-		return true
-	}
-	if strings.HasPrefix(line, ">") {
-		return true
-	}
-	if isTableSeparator(line) {
-		return true
-	}
-	if isPlaceholderRow(line) {
-		return true
-	}
-	return false
-}
-
-func isTableSeparator(line string) bool {
-	if !strings.HasPrefix(line, "|") {
-		return false
-	}
-	cleaned := strings.ReplaceAll(line, "|", "")
-	cleaned = strings.ReplaceAll(cleaned, "-", "")
-	cleaned = strings.ReplaceAll(cleaned, ":", "")
-	cleaned = strings.TrimSpace(cleaned)
-	return cleaned == ""
-}
-
-func isPlaceholderRow(line string) bool {
-	return strings.HasPrefix(line, "|") &&
-		strings.Contains(line, "<!--") &&
-		strings.Contains(line, "-->")
+	return repo.IsStubContent(content), nil
 }

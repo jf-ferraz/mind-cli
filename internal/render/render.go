@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/jf-ferraz/mind-cli/domain"
@@ -124,6 +125,17 @@ func (r *Renderer) renderHealthText(h *domain.ProjectHealth) string {
 		fmt.Fprintf(&b, "\nLast iteration: %s (%s)\n", h.LastIteration.DirName, h.LastIteration.Status)
 	}
 
+	// Staleness panel (FR-77)
+	if h.Staleness != nil && len(h.Staleness.Stale) > 0 {
+		fmt.Fprintln(&b)
+		fmt.Fprintf(&b, "Staleness: %s (%d stale)\n", h.Staleness.Status, len(h.Staleness.Stale))
+		fmt.Fprintln(&b, strings.Repeat("─", 50))
+		for id, reason := range h.Staleness.Stale {
+			fmt.Fprintf(&b, "  ! %s\n", id)
+			fmt.Fprintf(&b, "    %s\n", reason)
+		}
+	}
+
 	if len(h.Warnings) > 0 {
 		fmt.Fprintln(&b, "\nWarnings")
 		fmt.Fprintln(&b, strings.Repeat("─", 50))
@@ -221,6 +233,465 @@ func progressBar(complete, total, width int) string {
 		filled = width
 	}
 	return strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
+}
+
+// RenderDoctor formats a DoctorReport for display.
+func (r *Renderer) RenderDoctor(report *domain.DoctorReport) string {
+	if r.mode == ModeJSON {
+		return jsonMarshal(report)
+	}
+	return r.renderDoctorText(report)
+}
+
+// RenderInitResult formats an InitResult for display.
+func (r *Renderer) RenderInitResult(result *domain.InitResult) string {
+	if r.mode == ModeJSON {
+		return jsonMarshal(result)
+	}
+	return r.renderInitResultText(result)
+}
+
+// RenderCreateResult formats a CreateResult for display.
+func (r *Renderer) RenderCreateResult(result *domain.CreateResult) string {
+	if r.mode == ModeJSON {
+		return jsonMarshal(result)
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "Created: %s\n", result.Path)
+	if result.IndexUpdated {
+		fmt.Fprintln(&b, "INDEX.md updated")
+	}
+	return b.String()
+}
+
+// RenderCreateIterationResult formats a CreateIterationResult for display.
+func (r *Renderer) RenderCreateIterationResult(result *domain.CreateIterationResult) string {
+	if r.mode == ModeJSON {
+		return jsonMarshal(result)
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "Created iteration: %s\n", result.Path)
+	fmt.Fprintf(&b, "  Type: %s\n", result.Type)
+	fmt.Fprintf(&b, "  Files: %s\n", strings.Join(result.Files, ", "))
+	return b.String()
+}
+
+// RenderDocumentList formats a DocumentList for display.
+func (r *Renderer) RenderDocumentList(list *domain.DocumentList) string {
+	if r.mode == ModeJSON {
+		return jsonMarshal(list)
+	}
+	return r.renderDocumentListText(list)
+}
+
+// RenderDocTree formats a docs tree for display.
+func (r *Renderer) RenderDocTree(docs []domain.Document) string {
+	if r.mode == ModeJSON {
+		return jsonMarshal(docs)
+	}
+	return r.renderDocTreeText(docs)
+}
+
+// RenderStubList formats a StubList for display.
+func (r *Renderer) RenderStubList(list *domain.StubList) string {
+	if r.mode == ModeJSON {
+		return jsonMarshal(list)
+	}
+	return r.renderStubListText(list)
+}
+
+// RenderSearchResults formats SearchResults for display.
+func (r *Renderer) RenderSearchResults(results *domain.SearchResults) string {
+	if r.mode == ModeJSON {
+		return jsonMarshal(results)
+	}
+	return r.renderSearchResultsText(results)
+}
+
+// RenderUnifiedValidation formats a UnifiedValidationReport for display.
+func (r *Renderer) RenderUnifiedValidation(report *domain.UnifiedValidationReport) string {
+	if r.mode == ModeJSON {
+		return jsonMarshal(report)
+	}
+	return r.renderUnifiedValidationText(report)
+}
+
+// RenderWorkflowStatus formats a WorkflowState for display.
+func (r *Renderer) RenderWorkflowStatus(ws *domain.WorkflowState) string {
+	if r.mode == ModeJSON {
+		if ws == nil {
+			return jsonMarshal(map[string]string{"state": "idle"})
+		}
+		return jsonMarshal(ws)
+	}
+	return r.renderWorkflowStatusText(ws)
+}
+
+// RenderWorkflowHistory formats a WorkflowHistory for display.
+func (r *Renderer) RenderWorkflowHistory(history *domain.WorkflowHistory) string {
+	if r.mode == ModeJSON {
+		return jsonMarshal(history)
+	}
+	return r.renderWorkflowHistoryText(history)
+}
+
+// RenderVersionInfo formats a VersionInfo for display.
+func (r *Renderer) RenderVersionInfo(info *domain.VersionInfo) string {
+	if r.mode == ModeJSON {
+		return jsonMarshal(info)
+	}
+	return fmt.Sprintf("mind %s (%s) built %s %s/%s\n", info.Version, info.Commit, info.BuildDate, info.OS, info.Arch)
+}
+
+func (r *Renderer) renderDoctorText(report *domain.DoctorReport) string {
+	var b strings.Builder
+
+	fmt.Fprintln(&b, "=== Doctor Report ===")
+	fmt.Fprintln(&b)
+
+	for _, d := range report.Diagnostics {
+		icon := "✓"
+		switch d.Status {
+		case domain.DiagFail:
+			icon = "✗"
+		case domain.DiagWarn:
+			icon = "⚠"
+		}
+		fmt.Fprintf(&b, "%s [%s] %s: %s\n", icon, d.Category, d.Check, d.Message)
+		if d.Fix != "" && d.Status != domain.DiagPass {
+			fmt.Fprintf(&b, "  Fix: %s\n", d.Fix)
+		}
+	}
+
+	fmt.Fprintf(&b, "\nPass: %d | Fail: %d | Warn: %d\n", report.Summary.Pass, report.Summary.Fail, report.Summary.Warn)
+
+	if len(report.FixesApplied) > 0 {
+		fmt.Fprintln(&b, "\nFixes Applied:")
+		for _, fix := range report.FixesApplied {
+			fmt.Fprintf(&b, "  ✓ %s\n", fix)
+		}
+	}
+
+	return b.String()
+}
+
+func (r *Renderer) renderInitResultText(result *domain.InitResult) string {
+	var b strings.Builder
+
+	fmt.Fprintf(&b, "Initialized Mind project: %s\n", result.ProjectName)
+	fmt.Fprintf(&b, "Root: %s\n\n", result.Root)
+
+	if len(result.FilesCreated) > 0 {
+		fmt.Fprintln(&b, "Created:")
+		for _, f := range result.FilesCreated {
+			fmt.Fprintf(&b, "  %s\n", f)
+		}
+	}
+
+	if len(result.ExistingPreserved) > 0 {
+		fmt.Fprintln(&b, "\nPreserved (existing):")
+		for _, f := range result.ExistingPreserved {
+			fmt.Fprintf(&b, "  %s\n", f)
+		}
+	}
+
+	return b.String()
+}
+
+func (r *Renderer) renderDocumentListText(list *domain.DocumentList) string {
+	var b strings.Builder
+
+	currentZone := domain.Zone("")
+	for _, doc := range list.Documents {
+		if doc.Zone != currentZone {
+			if currentZone != "" {
+				fmt.Fprintln(&b)
+			}
+			currentZone = doc.Zone
+			fmt.Fprintf(&b, "%s/\n", string(doc.Zone))
+			fmt.Fprintln(&b, strings.Repeat("─", 40))
+		}
+		stub := ""
+		if doc.IsStub {
+			stub = " [stub]"
+		}
+		fmt.Fprintf(&b, "  %-40s %6d bytes  %s%s\n",
+			doc.Path,
+			doc.Size,
+			doc.ModTime.Format("2006-01-02"),
+			stub)
+	}
+
+	fmt.Fprintf(&b, "\nTotal: %d documents\n", list.Total)
+	return b.String()
+}
+
+func (r *Renderer) renderDocTreeText(docs []domain.Document) string {
+	var b strings.Builder
+
+	fmt.Fprintln(&b, "docs/")
+
+	// Group by zone
+	byZone := make(map[domain.Zone][]domain.Document)
+	for _, doc := range docs {
+		byZone[doc.Zone] = append(byZone[doc.Zone], doc)
+	}
+
+	for i, zone := range domain.AllZones {
+		zoneDocs := byZone[zone]
+		isLastZone := i == len(domain.AllZones)-1
+		prefix := "├── "
+		childPrefix := "│   "
+		if isLastZone {
+			prefix = "└── "
+			childPrefix = "    "
+		}
+		fmt.Fprintf(&b, "%s%s/\n", prefix, string(zone))
+
+		for j, doc := range zoneDocs {
+			isLast := j == len(zoneDocs)-1
+			filePrefix := childPrefix + "├── "
+			if isLast {
+				filePrefix = childPrefix + "└── "
+			}
+			stub := ""
+			if doc.IsStub {
+				stub = " [stub]"
+			}
+			name := doc.Name + ".md"
+			fmt.Fprintf(&b, "%s%s%s\n", filePrefix, name, stub)
+		}
+	}
+
+	return b.String()
+}
+
+func (r *Renderer) renderStubListText(list *domain.StubList) string {
+	if list.Count == 0 {
+		return "No stubs found.\n"
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "Found %d stub(s):\n\n", list.Count)
+
+	for _, stub := range list.Stubs {
+		fmt.Fprintf(&b, "  [%s] %s\n", stub.Zone, stub.Path)
+		if stub.Hint != "" {
+			fmt.Fprintf(&b, "    Hint: %s\n", stub.Hint)
+		}
+	}
+
+	return b.String()
+}
+
+func (r *Renderer) renderSearchResultsText(results *domain.SearchResults) string {
+	if results.TotalMatches == 0 {
+		return fmt.Sprintf("No matches found for %q.\n", results.Query)
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "Found %d match(es) in %d file(s) for %q:\n\n", results.TotalMatches, results.FilesMatched, results.Query)
+
+	for _, file := range results.Results {
+		fmt.Fprintf(&b, "%s:\n", file.Path)
+		for _, match := range file.Matches {
+			if match.ContextBefore != "" {
+				fmt.Fprintf(&b, "  %d: %s\n", match.Line-1, match.ContextBefore)
+			}
+			fmt.Fprintf(&b, "  %d: %s\n", match.Line, match.Text)
+			if match.ContextAfter != "" {
+				fmt.Fprintf(&b, "  %d: %s\n", match.Line+1, match.ContextAfter)
+			}
+			fmt.Fprintln(&b)
+		}
+	}
+
+	return b.String()
+}
+
+func (r *Renderer) renderUnifiedValidationText(report *domain.UnifiedValidationReport) string {
+	var b strings.Builder
+
+	for _, suite := range report.Suites {
+		b.WriteString(r.renderValidationText(&suite))
+		fmt.Fprintln(&b)
+	}
+
+	fmt.Fprintln(&b, "=== Summary ===")
+	fmt.Fprintf(&b, "Total: %d | Pass: %d | Fail: %d | Warn: %d\n",
+		report.Summary.Total, report.Summary.Passed, report.Summary.Failed, report.Summary.Warnings)
+
+	if report.Summary.Failed == 0 {
+		fmt.Fprintln(&b, "✓ All suites passed.")
+	} else {
+		fmt.Fprintf(&b, "✗ %d check(s) failed across all suites.\n", report.Summary.Failed)
+	}
+
+	return b.String()
+}
+
+func (r *Renderer) renderWorkflowStatusText(ws *domain.WorkflowState) string {
+	if ws == nil || ws.IsIdle() {
+		return "Workflow: idle\n"
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "Workflow: %s\n", ws.Type)
+	fmt.Fprintf(&b, "  Descriptor: %s\n", ws.Descriptor)
+	fmt.Fprintf(&b, "  Last agent: %s\n", ws.LastAgent)
+	if len(ws.RemainingChain) > 0 {
+		fmt.Fprintf(&b, "  Remaining:  %s\n", strings.Join(ws.RemainingChain, " → "))
+	}
+	if ws.Session > 0 {
+		fmt.Fprintf(&b, "  Session:    %d/%d\n", ws.Session, ws.TotalSessions)
+	}
+	return b.String()
+}
+
+func (r *Renderer) renderWorkflowHistoryText(history *domain.WorkflowHistory) string {
+	if history.Total == 0 {
+		return "No iterations found.\n"
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "%-5s %-14s %-30s %-12s %s\n", "#", "Type", "Descriptor", "Status", "Artifacts")
+	fmt.Fprintln(&b, strings.Repeat("─", 75))
+
+	for _, iter := range history.Iterations {
+		fmt.Fprintf(&b, "%03d   %-14s %-30s %-12s %d/%d\n",
+			iter.Seq,
+			string(iter.Type),
+			iter.Descriptor,
+			string(iter.Status),
+			iter.Artifacts.Present,
+			iter.Artifacts.Expected,
+		)
+	}
+
+	fmt.Fprintf(&b, "\nTotal: %d iteration(s)\n", history.Total)
+	return b.String()
+}
+
+// RenderReconcileResult formats a ReconcileResult for display (FR-51..FR-53).
+func (r *Renderer) RenderReconcileResult(result *domain.ReconcileResult) string {
+	if r.mode == ModeJSON {
+		return jsonMarshal(result)
+	}
+	return r.renderReconcileResultText(result)
+}
+
+// RenderGraph formats a dependency graph as an ASCII tree (FR-54).
+// stale is a map of document IDs to stale reasons (may be nil).
+func (r *Renderer) RenderGraph(graph *domain.Graph, stale map[string]string) string {
+	if r.mode == ModeJSON {
+		payload := struct {
+			Graph *domain.Graph      `json:"graph"`
+			Stale map[string]string  `json:"stale,omitempty"`
+		}{Graph: graph, Stale: stale}
+		return jsonMarshal(payload)
+	}
+	return r.renderGraphText(graph, stale)
+}
+
+func (r *Renderer) renderReconcileResultText(result *domain.ReconcileResult) string {
+	var b strings.Builder
+
+	fmt.Fprintf(&b, "=== Reconciliation ===\n\n")
+	fmt.Fprintf(&b, "Status: %s\n\n", result.Status)
+
+	if len(result.Changed) > 0 {
+		fmt.Fprintf(&b, "Changed (%d):\n", len(result.Changed))
+		for _, id := range result.Changed {
+			fmt.Fprintf(&b, "  ~ %s\n", id)
+		}
+		fmt.Fprintln(&b)
+	}
+
+	if len(result.Stale) > 0 {
+		fmt.Fprintf(&b, "Stale (%d):\n", len(result.Stale))
+		for id, reason := range result.Stale {
+			fmt.Fprintf(&b, "  ! %s\n", id)
+			fmt.Fprintf(&b, "    reason: %s\n", reason)
+		}
+		fmt.Fprintln(&b)
+	}
+
+	if len(result.Missing) > 0 {
+		fmt.Fprintf(&b, "Missing (%d):\n", len(result.Missing))
+		for _, id := range result.Missing {
+			fmt.Fprintf(&b, "  ? %s\n", id)
+		}
+		fmt.Fprintln(&b)
+	}
+
+	if len(result.Undeclared) > 0 {
+		fmt.Fprintf(&b, "Undeclared (%d):\n", len(result.Undeclared))
+		for _, path := range result.Undeclared {
+			fmt.Fprintf(&b, "  + %s\n", path)
+		}
+		fmt.Fprintln(&b)
+	}
+
+	if len(result.Warnings) > 0 {
+		fmt.Fprintln(&b, "Warnings:")
+		for _, w := range result.Warnings {
+			fmt.Fprintf(&b, "  %s\n", w)
+		}
+		fmt.Fprintln(&b)
+	}
+
+	fmt.Fprintf(&b, "Total: %d | Changed: %d | Stale: %d | Missing: %d | Clean: %d\n",
+		result.Stats.Total, result.Stats.Changed, result.Stats.Stale,
+		result.Stats.Missing, result.Stats.Clean)
+
+	return b.String()
+}
+
+func (r *Renderer) renderGraphText(graph *domain.Graph, stale map[string]string) string {
+	var b strings.Builder
+
+	fmt.Fprintln(&b, "=== Dependency Graph ===")
+	fmt.Fprintln(&b)
+
+	if len(graph.Nodes) == 0 {
+		fmt.Fprintln(&b, "No dependencies declared in mind.toml [[graph]].")
+		return b.String()
+	}
+
+	// Collect and sort nodes for deterministic output
+	nodes := sortedKeys(graph.Nodes)
+
+	for _, node := range nodes {
+		staleMarker := ""
+		if _, ok := stale[node]; ok {
+			staleMarker = " [STALE]"
+		}
+		fmt.Fprintf(&b, "%s%s\n", node, staleMarker)
+
+		edges := graph.Forward[node]
+		for i, edge := range edges {
+			prefix := "├── "
+			if i == len(edges)-1 {
+				prefix = "└── "
+			}
+			targetStale := ""
+			if _, ok := stale[edge.To]; ok {
+				targetStale = " [STALE]"
+			}
+			fmt.Fprintf(&b, "  %s(%s) %s%s\n", prefix, edge.Type, edge.To, targetStale)
+		}
+	}
+
+	return b.String()
+}
+
+func sortedKeys(m map[string]bool) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func jsonMarshal(v any) string {
