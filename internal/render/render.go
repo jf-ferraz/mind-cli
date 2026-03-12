@@ -352,13 +352,13 @@ func (r *Renderer) renderDoctorText(report *domain.DoctorReport) string {
 	for _, d := range report.Diagnostics {
 		icon := "✓"
 		switch d.Status {
-		case "fail":
+		case domain.DiagFail:
 			icon = "✗"
-		case "warn":
+		case domain.DiagWarn:
 			icon = "⚠"
 		}
 		fmt.Fprintf(&b, "%s [%s] %s: %s\n", icon, d.Category, d.Check, d.Message)
-		if d.Fix != "" && d.Status != "pass" {
+		if d.Fix != "" && d.Status != domain.DiagPass {
 			fmt.Fprintf(&b, "  Fix: %s\n", d.Fix)
 		}
 	}

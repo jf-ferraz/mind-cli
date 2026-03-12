@@ -70,11 +70,11 @@ func (s *DoctorService) Run(fix bool) *domain.DoctorReport {
 	// Count summary
 	for _, d := range report.Diagnostics {
 		switch d.Status {
-		case "pass":
+		case domain.DiagPass:
 			report.Summary.Pass++
-		case "fail":
+		case domain.DiagFail:
 			report.Summary.Fail++
-		case "warn":
+		case domain.DiagWarn:
 			report.Summary.Warn++
 		}
 	}
@@ -87,12 +87,12 @@ func (s *DoctorService) Run(fix bool) *domain.DoctorReport {
 	return report
 }
 
-func (s *DoctorService) addDiag(report *domain.DoctorReport, category, check, status, message, fixHint string, autoFixable bool) {
+func (s *DoctorService) addDiag(report *domain.DoctorReport, category, check string, status domain.DiagnosticStatus, message, fixHint string, autoFixable bool) {
 	level := domain.LevelInfo
 	switch status {
-	case "fail":
+	case domain.DiagFail:
 		level = domain.LevelFail
-	case "warn":
+	case domain.DiagWarn:
 		level = domain.LevelWarn
 	}
 
@@ -109,40 +109,40 @@ func (s *DoctorService) addDiag(report *domain.DoctorReport, category, check, st
 
 func (s *DoctorService) checkFramework(report *domain.DoctorReport) {
 	if s.docRepo.IsDir(".mind") {
-		s.addDiag(report, "framework", ".mind/ directory", "pass", ".mind/ directory exists", "", false)
+		s.addDiag(report, "framework", ".mind/ directory", domain.DiagPass, ".mind/ directory exists", "", false)
 	} else {
-		s.addDiag(report, "framework", ".mind/ directory", "fail", ".mind/ directory missing", "Run: mind init", false)
+		s.addDiag(report, "framework", ".mind/ directory", domain.DiagFail, ".mind/ directory missing", "Run: mind init", false)
 	}
 }
 
 func (s *DoctorService) checkAdapters(report *domain.DoctorReport) {
 	if s.docRepo.Exists(".claude/CLAUDE.md") {
-		s.addDiag(report, "framework", "Claude adapter", "pass", ".claude/CLAUDE.md exists", "", false)
+		s.addDiag(report, "framework", "Claude adapter", domain.DiagPass, ".claude/CLAUDE.md exists", "", false)
 	} else {
-		s.addDiag(report, "framework", "Claude adapter", "fail", ".claude/CLAUDE.md missing", "Run: mind init", true)
+		s.addDiag(report, "framework", "Claude adapter", domain.DiagFail, ".claude/CLAUDE.md missing", "Run: mind init", true)
 	}
 
 	if s.docRepo.IsDir(".github/agents") {
-		s.addDiag(report, "framework", "GitHub agents", "pass", ".github/agents/ exists", "", false)
+		s.addDiag(report, "framework", "GitHub agents", domain.DiagPass, ".github/agents/ exists", "", false)
 	} else {
-		s.addDiag(report, "framework", "GitHub agents", "warn", ".github/agents/ not found", "Run: mind init --with-github", false)
+		s.addDiag(report, "framework", "GitHub agents", domain.DiagWarn, ".github/agents/ not found", "Run: mind init --with-github", false)
 	}
 }
 
 func (s *DoctorService) checkDocStructure(report *domain.DoctorReport) {
 	if !s.docRepo.IsDir("docs") {
-		s.addDiag(report, "docs", "docs/ directory", "fail", "docs/ directory missing", "Run: mind init", true)
+		s.addDiag(report, "docs", "docs/ directory", domain.DiagFail, "docs/ directory missing", "Run: mind init", true)
 		return
 	}
-	s.addDiag(report, "docs", "docs/ directory", "pass", "docs/ directory exists", "", false)
+	s.addDiag(report, "docs", "docs/ directory", domain.DiagPass, "docs/ directory exists", "", false)
 
 	zones := domain.AllZones
 	for _, zone := range zones {
 		zoneDir := filepath.Join("docs", string(zone))
 		if s.docRepo.IsDir(zoneDir) {
-			s.addDiag(report, "docs", string(zone)+" zone", "pass", zoneDir+" exists", "", false)
+			s.addDiag(report, "docs", string(zone)+" zone", domain.DiagPass, zoneDir+" exists", "", false)
 		} else {
-			s.addDiag(report, "docs", string(zone)+" zone", "fail", zoneDir+" missing", "Create directory: "+zoneDir, true)
+			s.addDiag(report, "docs", string(zone)+" zone", domain.DiagFail, zoneDir+" missing", "Create directory: "+zoneDir, true)
 		}
 	}
 
@@ -159,12 +159,12 @@ func (s *DoctorService) checkDocStructure(report *domain.DoctorReport) {
 		if s.docRepo.Exists(path) {
 			isStub, _ := s.docRepo.IsStub(path)
 			if isStub {
-				s.addDiag(report, "docs", name, "warn", path+" is a stub", "Fill in content for "+path, false)
+				s.addDiag(report, "docs", name, domain.DiagWarn, path+" is a stub", "Fill in content for "+path, false)
 			} else {
-				s.addDiag(report, "docs", name, "pass", path+" exists with content", "", false)
+				s.addDiag(report, "docs", name, domain.DiagPass, path+" exists with content", "", false)
 			}
 		} else {
-			s.addDiag(report, "docs", name, "fail", path+" missing", "Create file: "+path, true)
+			s.addDiag(report, "docs", name, domain.DiagFail, path+" missing", "Create file: "+path, true)
 		}
 	}
 }
@@ -172,45 +172,45 @@ func (s *DoctorService) checkDocStructure(report *domain.DoctorReport) {
 func (s *DoctorService) checkBrief(report *domain.DoctorReport) {
 	brief, err := s.briefRepo.ParseBrief()
 	if err != nil {
-		s.addDiag(report, "brief", "Brief analysis", "fail", fmt.Sprintf("parse error: %v", err), "", false)
+		s.addDiag(report, "brief", "Brief analysis", domain.DiagFail, fmt.Sprintf("parse error: %v", err), "", false)
 		return
 	}
 
 	switch brief.GateResult {
 	case domain.BriefPresent:
-		s.addDiag(report, "brief", "Brief gate", "pass", "Brief has all required sections", "", false)
+		s.addDiag(report, "brief", "Brief gate", domain.DiagPass, "Brief has all required sections", "", false)
 	case domain.BriefStub:
-		s.addDiag(report, "brief", "Brief gate", "warn", "Brief is a stub or missing required sections", "Fill in Vision, Key Deliverables, and Scope sections", false)
+		s.addDiag(report, "brief", "Brief gate", domain.DiagWarn, "Brief is a stub or missing required sections", "Fill in Vision, Key Deliverables, and Scope sections", false)
 	case domain.BriefMissing:
-		s.addDiag(report, "brief", "Brief gate", "fail", "Project brief missing", "Run: mind create brief", false)
+		s.addDiag(report, "brief", "Brief gate", domain.DiagFail, "Project brief missing", "Run: mind create brief", false)
 	}
 }
 
 func (s *DoctorService) checkConfig(report *domain.DoctorReport) {
 	if s.configRepo == nil {
-		s.addDiag(report, "config", "mind.toml", "fail", "mind.toml not found", "Run: mind init", false)
+		s.addDiag(report, "config", "mind.toml", domain.DiagFail, "mind.toml not found", "Run: mind init", false)
 		return
 	}
 
 	cfg, err := s.configRepo.ReadProjectConfig()
 	if err != nil {
-		s.addDiag(report, "config", "mind.toml", "fail", fmt.Sprintf("parse error: %v", err), "Fix mind.toml syntax", false)
+		s.addDiag(report, "config", "mind.toml", domain.DiagFail, fmt.Sprintf("parse error: %v", err), "Fix mind.toml syntax", false)
 		return
 	}
 
-	s.addDiag(report, "config", "mind.toml", "pass", "mind.toml is valid", "", false)
+	s.addDiag(report, "config", "mind.toml", domain.DiagPass, "mind.toml is valid", "", false)
 
 	if cfg.Project.Name == "" {
-		s.addDiag(report, "config", "Project name", "warn", "project.name is empty", "Set project.name in mind.toml", false)
+		s.addDiag(report, "config", "Project name", domain.DiagWarn, "project.name is empty", "Set project.name in mind.toml", false)
 	}
 }
 
 func (s *DoctorService) checkWorkflow(report *domain.DoctorReport) {
 	if !s.docRepo.Exists("docs/state/workflow.md") {
-		s.addDiag(report, "workflow", "Workflow file", "warn", "docs/state/workflow.md missing", "Create file: docs/state/workflow.md", true)
+		s.addDiag(report, "workflow", "Workflow file", domain.DiagWarn, "docs/state/workflow.md missing", "Create file: docs/state/workflow.md", true)
 		return
 	}
-	s.addDiag(report, "workflow", "Workflow file", "pass", "docs/state/workflow.md exists", "", false)
+	s.addDiag(report, "workflow", "Workflow file", domain.DiagPass, "docs/state/workflow.md exists", "", false)
 }
 
 func (s *DoctorService) checkIterations(report *domain.DoctorReport) {
@@ -220,11 +220,11 @@ func (s *DoctorService) checkIterations(report *domain.DoctorReport) {
 	}
 
 	if len(iterations) == 0 {
-		s.addDiag(report, "iterations", "Iteration count", "pass", "No iterations (OK for new projects)", "", false)
+		s.addDiag(report, "iterations", "Iteration count", domain.DiagPass, "No iterations (OK for new projects)", "", false)
 		return
 	}
 
-	s.addDiag(report, "iterations", "Iteration count", "pass", fmt.Sprintf("%d iteration(s) found", len(iterations)), "", false)
+	s.addDiag(report, "iterations", "Iteration count", domain.DiagPass, fmt.Sprintf("%d iteration(s) found", len(iterations)), "", false)
 
 	for _, iter := range iterations {
 		hasOverview := false
@@ -238,9 +238,9 @@ func (s *DoctorService) checkIterations(report *domain.DoctorReport) {
 			}
 		}
 		if !hasOverview {
-			s.addDiag(report, "iterations", iter.DirName, "fail", "Missing overview.md", "Create overview.md in "+iter.DirName, false)
+			s.addDiag(report, "iterations", iter.DirName, domain.DiagFail, "Missing overview.md", "Create overview.md in "+iter.DirName, false)
 		} else if complete < len(domain.ExpectedArtifacts) {
-			s.addDiag(report, "iterations", iter.DirName, "warn",
+			s.addDiag(report, "iterations", iter.DirName, domain.DiagWarn,
 				fmt.Sprintf("%d/%d artifacts present", complete, len(domain.ExpectedArtifacts)),
 				"Complete remaining artifacts", false)
 		}
@@ -263,7 +263,7 @@ func (s *DoctorService) checkStaleness(report *domain.DoctorReport) {
 			if reason == "" {
 				reason = "document is stale"
 			}
-			s.addDiag(report, "staleness", id, "warn",
+			s.addDiag(report, "staleness", id, domain.DiagWarn,
 				fmt.Sprintf("%s: %s", id, reason),
 				"Review and update this document, then run 'mind reconcile --force'",
 				false)
@@ -273,7 +273,7 @@ func (s *DoctorService) checkStaleness(report *domain.DoctorReport) {
 
 func (s *DoctorService) applyFixes(report *domain.DoctorReport) {
 	for _, d := range report.Diagnostics {
-		if !d.AutoFix || d.Status == "pass" {
+		if !d.AutoFix || d.Status == domain.DiagPass {
 			continue
 		}
 

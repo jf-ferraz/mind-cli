@@ -22,15 +22,24 @@ type ZoneHealth struct {
 	Files    []Document `json:"files,omitempty"`
 }
 
+// DiagnosticStatus indicates the outcome of a doctor diagnostic check.
+type DiagnosticStatus string
+
+const (
+	DiagPass DiagnosticStatus = "pass"
+	DiagFail DiagnosticStatus = "fail"
+	DiagWarn DiagnosticStatus = "warn"
+)
+
 // Diagnostic represents an issue found by `mind doctor`.
 type Diagnostic struct {
-	Category string     `json:"category"`
-	Check    string     `json:"check"`
-	Status   string     `json:"status"`
-	Level    CheckLevel `json:"-"`
-	Message  string     `json:"message"`
-	Fix      string     `json:"fix,omitempty"`
-	AutoFix  bool       `json:"auto_fixable"`
+	Category string           `json:"category"`
+	Check    string           `json:"check"`
+	Status   DiagnosticStatus `json:"status"`
+	Level    CheckLevel       `json:"-"`
+	Message  string           `json:"message"`
+	Fix      string           `json:"fix,omitempty"`
+	AutoFix  bool             `json:"auto_fixable"`
 }
 
 // DoctorReport aggregates diagnostics from `mind doctor`.
