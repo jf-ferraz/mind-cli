@@ -33,6 +33,7 @@ type Deps struct {
 	DoctorSvc     *service.DoctorService
 	WorkflowSvc   *service.WorkflowService
 	GenerateSvc   *service.GenerateService
+	QualityRepo   *fs.QualityRepo
 }
 
 // BuildDeps constructs all repositories and services for a given project root.
@@ -44,6 +45,7 @@ func BuildDeps(root string, r *render.Renderer) *Deps {
 	briefRepo := fs.NewBriefRepo(docRepo)
 	configRepo := fs.NewConfigRepo(root)
 	lockRepo := fs.NewLockRepo(root)
+	qualityRepo := fs.NewQualityRepo(root)
 
 	return &Deps{
 		ProjectRoot:   root,
@@ -60,6 +62,7 @@ func BuildDeps(root string, r *render.Renderer) *Deps {
 		DoctorSvc:     service.NewDoctorService(root, docRepo, iterRepo, briefRepo, configRepo, lockRepo),
 		WorkflowSvc:   service.NewWorkflowService(stateRepo, iterRepo),
 		GenerateSvc:   service.NewGenerateService(root),
+		QualityRepo:   qualityRepo,
 	}
 }
 

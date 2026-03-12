@@ -72,3 +72,10 @@ type BriefRepo interface {
 	// ParseBrief reads and analyzes the project brief.
 	ParseBrief() (*domain.Brief, error)
 }
+
+// QualityRepo reads quality log data.
+type QualityRepo interface {
+	// ReadLog returns all quality entries from quality-log.yml, ordered by date.
+	// Returns empty slice and nil error if the file does not exist.
+	ReadLog() ([]domain.QualityEntry, error)
+}
