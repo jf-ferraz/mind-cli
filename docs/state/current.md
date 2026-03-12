@@ -11,6 +11,7 @@ None — iteration 004-pre-phase-3-cleanup is complete.
 - **SHOULD**: Status bar lacks cursor position info for lists (S-3, tui/statusbar.go)
 - **SHOULD**: 9 component files inlined into tab views instead of separate files (S-4)
 - **SHOULD**: FR-88 (--check/--force exclusion) tested by code inspection only — no unit test (S-5)
+- **SHOULD**: `ProjectService.DetectProject()` delegates to `fs.DetectProject()` — should use interface (reviewer S-1, iteration 004)
 - **SHOULD**: 5 exported methods in fs/doc_repo.go lack GoDoc comments (NFR-8)
 - **COULD**: DoctorService reimplements checks instead of delegating to ValidationService
 - **COULD**: Graph rendering is flat adjacency list rather than rooted tree
