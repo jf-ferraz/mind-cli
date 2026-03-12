@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/jf-ferraz/mind-cli/domain"
-	"github.com/jf-ferraz/mind-cli/internal/repo/fs"
+	"github.com/jf-ferraz/mind-cli/internal/repo"
 )
 
 // DocRepo is an in-memory implementation of repo.DocRepo for testing.
@@ -72,7 +72,7 @@ func (r *DocRepo) IsStub(relPath string) (bool, error) {
 	if !ok {
 		return false, fmt.Errorf("file not found: %s", relPath)
 	}
-	return fs.IsStubContent(data), nil
+	return repo.IsStubContent(data), nil
 }
 
 // IsDir checks if a path is a directory.
