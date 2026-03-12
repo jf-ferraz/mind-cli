@@ -88,7 +88,7 @@ manages iterations, and bridges AI agent workflows.`,
 func init() {
 	rootCmd.PersistentFlags().BoolVarP(&flagJSON, "json", "j", false, "Output in JSON format")
 	rootCmd.PersistentFlags().BoolVar(&flagNoColor, "no-color", false, "Disable colored output")
-	rootCmd.PersistentFlags().StringVarP(&flagProject, "project", "p", "", "Path to project root (default: auto-detect)")
+	rootCmd.PersistentFlags().StringVarP(&flagProject, "project-root", "p", "", "Path to project root (default: auto-detect)")
 }
 
 // Execute runs the root command.
