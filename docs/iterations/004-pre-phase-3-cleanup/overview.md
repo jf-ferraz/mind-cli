@@ -12,7 +12,21 @@ Deep analysis of the entire mind-cli codebase covering architecture, design patt
 ## Requirement Traceability
 | Req ID | Description | Analyst | Architect | Developer | Reviewer |
 |--------|-------------|---------|-----------|-----------|----------|
-<!-- Populated by analyst (FR-N IDs), tracked through chain. Each agent marks ✓ when addressed. -->
+| FR-125 | Deps struct: concrete `*fs.` types to `repo.` interfaces (MUST) | ✓ | ✓ | | |
+| FR-126 | Remove `mem/` import of `fs/` -- inverse dependency (SHOULD) | ✓ | ✓ | | |
+| FR-127 | Transitive propagation edge-type reasons at depth > 0 (SHOULD) | ✓ | ✓ | | |
+| FR-128 | Rename `--project` flag to `--project-root` (SHOULD) | ✓ | ✓ | | |
+| FR-129 | Replace `os.Exit()` with error returns in cmd/ (SHOULD) | ✓ | ✓ | | |
+| FR-130 | `Diagnostic.Status` raw string to `DiagnosticStatus` enum (SHOULD) | ✓ | ✓ | | |
+| FR-131 | cmd/ exit code test coverage (SHOULD) | ✓ | ✓ | | |
+| FR-132 | render/ JSON output test coverage (SHOULD) | ✓ | ✓ | | |
+| FR-133 | Architecture doc stale references (SHOULD) | ✓ | ✓ | | |
+| FR-134 | Requirements doc overview multi-phase update (SHOULD) | ✓ | ✓ | | |
+| FR-135 | Domain model doc: add DiagnosticStatus to DC-3 (SHOULD) | ✓ | ✓ | | |
+| FR-136 | current.md: remove resolved issues, add iteration 004 (SHOULD) | ✓ | ✓ | | |
+| FR-137 | tui/ remove direct `fs` import, use Deps interfaces (SHOULD) | ✓ | ✓ | | |
+| FR-138 | Verification: go vet, go build, go test all pass (MUST) | ✓ | ✓ | | |
+| FR-139 | Regression guard: all 374 existing tests pass (MUST) | ✓ | ✓ | | |
 
 ## Prior Analysis Context
 - **Source**: docs/knowledge/phase-2-tui-dashboard-convergence.md

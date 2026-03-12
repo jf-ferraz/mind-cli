@@ -481,3 +481,63 @@ Phase 2 adds the `mind tui` command -- a full-screen interactive Bubble Tea dash
 - **FR-122**: GIVEN TUI launches on Tab 1 WHEN no interaction THEN no validation runs. GIVEN switch to Tab 4 THEN validation starts.
 - **FR-123**: GIVEN Tab 2 cursor on row 5 with spec filter WHEN switch to Tab 3 and back THEN cursor on row 5, spec filter active.
 - **FR-124**: GIVEN TUI running WHEN `q` pressed THEN terminal restored (cursor visible, input echoing, alternate screen exited).
+
+---
+
+## Phase 2.5: Pre-Phase 3 Cleanup
+
+Pre-Phase 3 cleanup addresses architectural debt, type safety gaps, testing coverage, and documentation accuracy identified by convergence analysis (score 4.3/5.0). One MUST-fix item blocks Phase 3 (MCP server): the Deps struct uses concrete filesystem types instead of repository interfaces. Eight SHOULD-fix items improve code quality, testability, and consistency. No new CLI commands. No new external dependencies.
+
+### Interface/Type Consistency
+
+- **FR-125**: The `deps.Deps` struct (`internal/deps/deps.go`) MUST declare all repository fields using `repo.` interface types (`repo.DocRepo`, `repo.IterationRepo`, `repo.BriefRepo`, `repo.ConfigRepo`, `repo.LockRepo`, `repo.StateRepo`, `repo.QualityRepo`) instead of concrete `*fs.` types. The `Build()` function MUST still construct `fs.` implementations but return them through interface fields. [MUST]
+- **FR-126**: The `internal/repo/mem/` package MUST NOT import `internal/repo/fs`. Any shared functionality (such as `IsStubContent()`) MUST be relocated to a package that both `fs/` and `mem/` can import without creating inverse dependencies. [SHOULD]
+- **FR-137**: After Deps migration, `tui/` MUST access repositories exclusively through `Deps` interface fields. Direct imports of `internal/repo/fs` from `tui/` MUST be removed. [SHOULD]
+
+### Staleness Propagation Accuracy
+
+- **FR-127**: The `buildReason()` function in `internal/reconcile/propagate.go` MUST produce edge-type-specific reason strings at ALL propagation depths. At depth > 0, the reason MUST reflect the edge type between the immediate predecessor and the target document, not the edge from the original source. [SHOULD]
+
+### CLI Flag Rename
+
+- **FR-128**: The `--project` global flag (`cmd/root.go`) MUST be renamed to `--project-root`. The short flag `-p` MAY be retained. All internal references MUST be updated. [SHOULD]
+
+### Exit Code Architecture
+
+- **FR-129**: All `cmd/` command handlers MUST return errors to Cobra instead of calling `os.Exit()` directly. A structured error type carrying an exit code MUST be used so `Execute()` maps errors to exit codes. Dead code after `os.Exit()` MUST be removed. [SHOULD]
+- **FR-130**: `Diagnostic.Status` in `domain/health.go` MUST use a typed `DiagnosticStatus` enum instead of raw `string`. JSON serialization MUST produce unchanged values (`"pass"`, `"fail"`, `"warn"`). [SHOULD]
+
+### Test Coverage
+
+- **FR-131**: `cmd/` MUST have exit code tests using `cobra.Command.Execute()`. At minimum: `check docs`, `check refs`, `check config`, `check all`, `reconcile`, `status`, `doctor`. [SHOULD]
+- **FR-132**: `internal/render/` MUST have JSON output tests for `RenderHealth()`, `RenderValidation()`, `RenderReconcileResult()`, `RenderDoctorReport()`. [SHOULD]
+
+### Documentation Accuracy
+
+- **FR-133**: `docs/spec/architecture.md` MUST fix stale references: `cmd/tui_cmd.go` to `cmd/tui.go`, add `InitService`/`DoctorService` to component map, update `--project` to `--project-root`. [SHOULD]
+- **FR-134**: `docs/spec/requirements.md` overview MUST be updated to acknowledge multi-phase scope (Phase 1, 1.5, 2, 2.5). [SHOULD]
+- **FR-135**: `docs/spec/domain-model.md` MUST include `DiagnosticStatus` in the supporting types table and DC-3 constraint. [SHOULD]
+- **FR-136**: `docs/state/current.md` MUST remove resolved issues and add iteration 004 to Recent Changes. [SHOULD]
+
+### Verification
+
+- **FR-138**: After all changes, `go vet ./...` MUST report zero issues and `go build ./...` MUST succeed. [MUST]
+- **FR-139**: All pre-existing 374 tests MUST pass. No test may be deleted. Tests may be modified only for interface or flag name changes. [MUST]
+
+### Pre-Phase 3 Cleanup Acceptance Criteria
+
+- **FR-125**: GIVEN `internal/deps/deps.go` WHEN inspected THEN all 7 repository fields use `repo.` interface types. GIVEN `tui/app.go` imports THEN `internal/repo/fs` does NOT appear. GIVEN `go build ./...` THEN success.
+- **FR-126**: GIVEN `go list -f '{{.Imports}}' ./internal/repo/mem/` WHEN run THEN `internal/repo/fs` does NOT appear. GIVEN `go test ./...` THEN all pass.
+- **FR-127**: GIVEN chain A --(requires)--> B --(informs)--> C where A changes WHEN propagation runs THEN B's reason contains "prerequisite changed" AND C's reason reflects the B-to-C `informs` edge type.
+- **FR-128**: GIVEN `mind status --project-root /tmp/p` WHEN invoked THEN `/tmp/p` is used as root. GIVEN `mind --help` THEN `--project-root` appears in global flags.
+- **FR-129**: GIVEN `cmd/` source files WHEN searched for `os.Exit(` THEN zero matches. GIVEN same error conditions THEN same exit codes produced via error returns.
+- **FR-130**: GIVEN `domain/health.go` WHEN inspected THEN `Diagnostic.Status` is `DiagnosticStatus`. GIVEN `mind doctor --json` THEN status values unchanged.
+- **FR-131**: GIVEN `go test ./cmd/` WHEN run THEN tests exist and pass. GIVEN check command with FAIL-level check THEN error carries exit code 1.
+- **FR-132**: GIVEN `go test ./internal/render/` WHEN run THEN tests exist and pass. GIVEN JSON mode render THEN output is valid JSON with correct field names.
+- **FR-133**: GIVEN `docs/spec/architecture.md` WHEN searched for `cmd/tui_cmd.go` THEN zero matches. GIVEN component map THEN `InitService` and `DoctorService` rows exist.
+- **FR-134**: GIVEN `docs/spec/requirements.md` overview WHEN read THEN it acknowledges Phase 1, 1.5, 2, and 2.5 scope.
+- **FR-135**: GIVEN `docs/spec/domain-model.md` supporting types WHEN inspected THEN `DiagnosticStatus` row exists. GIVEN DC-3 THEN it lists `DiagnosticStatus`.
+- **FR-136**: GIVEN `docs/state/current.md` WHEN inspected THEN resolved SHOULD items are removed and iteration 004 entry exists.
+- **FR-137**: GIVEN `tui/` imports WHEN inspected THEN `internal/repo/fs` does NOT appear. GIVEN `mind tui` THEN behavior unchanged.
+- **FR-138**: GIVEN `go vet ./...` WHEN run THEN zero issues. GIVEN `go build ./...` THEN success. GIVEN `go test ./...` THEN all pass.
+- **FR-139**: GIVEN `go test ./...` WHEN run THEN test count >= 374 + new tests. GIVEN any modified test THEN changes limited to type/flag updates.
