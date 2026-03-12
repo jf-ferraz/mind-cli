@@ -1,6 +1,11 @@
 package service
 
 import (
+	"bytes"
+	"os/exec"
+	"strings"
+	"time"
+
 	"github.com/jf-ferraz/mind-cli/domain"
 	"github.com/jf-ferraz/mind-cli/internal/repo"
 	"github.com/jf-ferraz/mind-cli/internal/validate"
@@ -64,6 +69,80 @@ func (s *ValidationService) RunConfig(projectRoot string) domain.ValidationRepor
 	}
 	suite := validate.ConfigSuite()
 	return suite.Run(ctx)
+}
+
+// RunGate executes build/lint/test commands from mind.toml and returns structured results.
+func (s *ValidationService) RunGate(projectRoot string) *domain.GateResult {
+	result := &domain.GateResult{}
+
+	if s.configRepo == nil {
+		return result
+	}
+
+	cfg, err := s.configRepo.ReadProjectConfig()
+	if err != nil || cfg == nil {
+		return result
+	}
+
+	type namedCmd struct {
+		name string
+		cmd  string
+	}
+
+	cmds := []namedCmd{}
+	if cfg.Project.Commands.Build != "" {
+		cmds = append(cmds, namedCmd{"build", cfg.Project.Commands.Build})
+	}
+	if cfg.Project.Commands.Lint != "" {
+		cmds = append(cmds, namedCmd{"lint", cfg.Project.Commands.Lint})
+	}
+	if cfg.Project.Commands.Test != "" {
+		cmds = append(cmds, namedCmd{"test", cfg.Project.Commands.Test})
+	}
+
+	result.Total = len(cmds)
+	for _, nc := range cmds {
+		cr := runGateCommand(nc.name, nc.cmd, projectRoot)
+		result.Commands = append(result.Commands, cr)
+		if cr.Pass {
+			result.Passed++
+		}
+	}
+	result.Pass = result.Passed == result.Total && result.Total > 0
+	return result
+}
+
+func runGateCommand(name, command, dir string) domain.GateCommandResult {
+	cr := domain.GateCommandResult{Name: name, Command: command}
+	parts := strings.Fields(command)
+	if len(parts) == 0 {
+		cr.Stderr = "empty command"
+		return cr
+	}
+
+	var stdout, stderr bytes.Buffer
+	cmd := exec.Command(parts[0], parts[1:]...)
+	cmd.Dir = dir
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	start := time.Now()
+	err := cmd.Run()
+	cr.Duration = time.Since(start)
+	cr.Stdout = stdout.String()
+	cr.Stderr = stderr.String()
+
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			cr.ExitCode = exitErr.ExitCode()
+		} else {
+			cr.ExitCode = 1
+		}
+		cr.Pass = false
+	} else {
+		cr.Pass = true
+	}
+	return cr
 }
 
 // RunAll executes all validation suites and returns a unified report.

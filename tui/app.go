@@ -235,8 +235,8 @@ func (a App) View() string {
 	// Separator
 	sep := theme.Separator.Render(strings.Repeat("─", a.width))
 
-	// Status bar
-	statusBar := renderStatusBar(a.width, a.activeTab, "")
+	// Status bar with cursor position for list views
+	statusBar := renderStatusBar(a.width, a.activeTab, a.cursorInfo())
 
 	// Content area height
 	chromeHeight := lipgloss.Height(titleBar) + lipgloss.Height(tabBar) +
@@ -280,6 +280,17 @@ func (a App) View() string {
 	}
 
 	return screen
+}
+
+// cursorInfo returns a position string ("N/M") for list-based tabs.
+func (a App) cursorInfo() string {
+	switch a.activeTab {
+	case TabDocs:
+		return a.docs.CursorInfo()
+	case TabIterations:
+		return a.iters.CursorInfo()
+	}
+	return ""
 }
 
 func (a App) renderTitleBar() string {

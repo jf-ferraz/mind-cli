@@ -4,7 +4,7 @@
 
 Phase 1 of mind-cli delivers a deterministic CLI that replaces the Mind Agent Framework's 9 bash scripts with a single Go binary. It provides project health diagnostics, 17-check documentation validation, 11-check cross-reference validation, document scaffolding for 6 artifact types, workflow state inspection, and three output modes (interactive, plain, JSON) -- all accessed through a unified `mind` command with `--json` support on every subcommand.
 
-This document covers Phase 1 (Core CLI), Phase 1.5 (Reconciliation Engine), Phase 2 (TUI Dashboard), and the pre-Phase 3 cleanup iteration. Phase 1.5 requirements (FR-51 through FR-87) are appended below the Phase 1 section. Phase 2 requirements (FR-88 through FR-124) follow. Pre-Phase 3 cleanup requirements (FR-125 through FR-139) address interface consistency, type safety, test coverage, and documentation accuracy.
+This document covers Phase 1 (Core CLI), Phase 1.5 (Reconciliation Engine), Phase 2 (TUI Dashboard), the pre-Phase 3 cleanup iteration, and the Phase 3 review and remediation iteration. Phase 1.5 requirements (FR-51 through FR-87) are appended below the Phase 1 section. Phase 2 requirements (FR-88 through FR-124) follow. Pre-Phase 3 cleanup requirements (FR-125 through FR-139) address interface consistency, type safety, test coverage, and documentation accuracy. Phase 3 review and remediation requirements (FR-140 through FR-151) address MCP protocol compliance, quality domain model alignment, test coverage for all Phase 3 packages, and architectural layer violation remediation.
 
 ## Scope Boundary
 
@@ -544,3 +544,60 @@ Pre-Phase 3 cleanup addresses architectural debt, type safety gaps, testing cove
 - **FR-137**: GIVEN `tui/` imports WHEN inspected THEN `internal/repo/fs` does NOT appear. GIVEN `mind tui` THEN behavior unchanged.
 - **FR-138**: GIVEN `go vet ./...` WHEN run THEN zero issues. GIVEN `go build ./...` THEN success. GIVEN `go test ./...` THEN all pass.
 - **FR-139**: GIVEN `go test ./...` WHEN run THEN test count >= 374 + new tests. GIVEN any modified test THEN changes limited to type/flag updates.
+
+---
+
+## Phase 3 Review and Remediation (FR-140 through FR-151)
+
+Phase 3 (iteration 005, implemented outside the Mind Framework process) delivered `mind preflight`, `mind handoff`, `mind serve` (MCP server), `internal/orchestrate/`, and `internal/mcp/`. A convergence analysis (`docs/knowledge/phase-3-review-convergence.md`) identified MUST, SHOULD, and COULD violations. This section defines requirements to remediate them. Traceable to findings M-1, M-2, M-3, S-1 through S-6, C-1, C-4.
+
+### MCP Protocol Compliance
+
+- **FR-140**: The MCP server (`internal/mcp/server.go`) MUST handle JSON-RPC 2.0 notifications (requests where `id` is absent or null) by returning `nil` from `handleRaw()` — producing no response on the wire. The `notifications/initialized` notification sent by MCP clients after the initialize handshake MUST be silently acknowledged (no response). Any method matching the `notifications/*` pattern MUST follow this rule. [MUST] _(traceable: M-1)_
+
+### Quality Domain Model Alignment
+
+- **FR-141**: The quality dimension constants in `domain/quality.go` MUST be renamed to match the six rubric dimension names defined in `.mind/conversation/config/quality.yml`: `perspective_diversity`, `evidence_quality`, `concession_depth`, `challenge_substantiveness`, `synthesis_quality`, `actionability`. The old constant names (`rigor`, `coverage`, `objectivity`, `convergence`, `depth`) MUST be removed. `internal/service/quality.go` parsing logic MUST be updated to recognize the new names so that all six dimensions parse with non-zero values from real convergence documents. [MUST] _(traceable: M-2)_
+
+### Test Coverage for Phase 3 Packages
+
+- **FR-142**: The `internal/orchestrate/` package MUST have a `preflight_test.go` file with unit tests covering: `PreflightService.Run()` for each `RequestType`, the brief gate blocking condition, the doc validation step (including hard-failure blocking when `docsReport.Failed > 0`), and `WorkflowState` write. Coverage on the package MUST be ≥ 80%. [MUST] _(traceable: M-3)_
+- **FR-143**: The `internal/mcp/` package MUST have a `server_test.go` file with unit tests covering: `handleRaw()` for `initialize`, `tools/list`, `tools/call` (success and unknown tool), malformed JSON, and `notifications/initialized` (verifying `nil` return — no response written). Coverage on the package MUST be ≥ 80%. [MUST] _(traceable: M-3)_
+- **FR-144**: `internal/service/quality.go` MUST have a `quality_test.go` file with unit tests covering `Log()` and the dimension-parsing regex, verified against at least one real convergence document sample that includes all six rubric dimension names. [MUST] _(traceable: M-3)_
+
+### Layer Violation Remediation
+
+- **FR-145**: `StateRepo` (`internal/repo/interfaces.go`) SHOULD be extended with a method for appending a completed iteration entry to `docs/state/current.md`. `cmd/handoff.go` SHOULD call this method instead of using `os.ReadFile`/`os.WriteFile` directly for `current.md`. After this change, `cmd/handoff.go` MUST NOT import `os` for reading or writing `current.md`. [SHOULD] _(traceable: S-1)_
+
+### HandoffService Extraction
+
+- **FR-146**: `PreflightService.Handoff()` and its always-erroring `findIteration()` stub SHOULD be removed from `internal/orchestrate/preflight.go`. A `HandoffService` SHOULD be introduced in `internal/orchestrate/` with proper `IterationRepo` constructor injection, encapsulating the 5-step handoff sequence. `cmd/handoff.go` SHOULD delegate to `HandoffService` rather than implementing steps inline. [SHOULD] _(traceable: S-2, S-3)_
+
+### Preflight Doc-Failure Blocking
+
+- **FR-147**: `PreflightService.Run()` SHOULD block (return a non-nil error) when `docsReport.Failed > 0` after step 3 (doc validation). The error MUST identify the failure count and instruct the user to run `mind check docs`. When `docsReport.Failed == 0` and warnings exist, preflight SHOULD proceed with warnings appended to `PreflightResult.Warnings`. [SHOULD] _(traceable: S-4)_
+
+### Branch Comparison Portability
+
+- **FR-148**: `cmd/handoff.go` `branchAhead()` SHOULD NOT hardcode `HEAD...main`. The comparison base SHOULD be read from `mind.toml` governance settings (e.g., a `default-branch` key) and fall back to `"main"` only when no setting is present. The string literal `"HEAD...main"` MUST NOT appear in the source file. [SHOULD] _(traceable: S-5)_
+
+### Structural Conformance (COULD)
+
+- **FR-149**: A `classify.go` file COULD be created in `internal/orchestrate/` as a thin adapter re-exporting `domain.Classify()` and `domain.Slugify()`, satisfying the BP-08 package structure expectation. [COULD] _(traceable: S-6)_
+- **FR-150**: `splitOn()` and `trimSpace()` helper functions in `internal/mcp/tools.go` COULD be replaced with direct calls to `strings.Split()` and `strings.TrimSpace()`. [COULD] _(traceable: C-1)_
+- **FR-151**: `renderPreflightResult()` in `cmd/preflight.go` COULD be refactored to use the `Renderer` type consistent with other commands, adding `--json` support to `mind preflight`. [COULD] _(traceable: C-4)_
+
+### Phase 3 Remediation Acceptance Criteria
+
+- **FR-140**: GIVEN an MCP client sends `notifications/initialized` (no `id` field) WHEN `handleRaw()` processes it THEN `nil` is returned and no bytes are written to the transport. GIVEN `go test ./internal/mcp/...` THEN all tests pass including the notification test.
+- **FR-141**: GIVEN `domain/quality.go` WHEN inspected THEN exported constants are `DimPerspectiveDiversity`, `DimEvidenceQuality`, `DimConcessionDepth`, `DimChallengeSubstantiveness`, `DimSynthesisQuality`, `DimActionability` with snake_case string values. GIVEN `QualityService.Log()` run against a convergence document using rubric names THEN all 6 dimensions parse with `Value > 0`. GIVEN `go build ./...` THEN success.
+- **FR-142**: GIVEN `go test ./internal/orchestrate/...` WHEN run THEN all tests pass. GIVEN a `TypeComplexNew` request with missing brief WHEN `Run()` is called THEN an error containing "brief gate BLOCKED" is returned. GIVEN coverage tool on `internal/orchestrate/` THEN ≥ 80%.
+- **FR-143**: GIVEN `go test ./internal/mcp/...` WHEN run THEN all tests pass. GIVEN `notifications/initialized` input to `handleRaw()` THEN nil is returned. GIVEN malformed JSON THEN `errParse` response is returned. GIVEN coverage tool on `internal/mcp/` THEN ≥ 80%.
+- **FR-144**: GIVEN `go test ./internal/service/...` WHEN run THEN all quality tests pass. GIVEN convergence document with all 6 rubric names WHEN parsed THEN `len(Dimensions) == 6` and all `Value > 0`.
+- **FR-145**: GIVEN `cmd/handoff.go` source WHEN searched for `os.ReadFile` and `os.WriteFile` THEN zero matches for `current.md` operations. GIVEN `mind handoff <valid-iter-id>` THEN `current.md` "Recent Changes" contains the iteration entry.
+- **FR-146**: GIVEN `internal/orchestrate/preflight.go` WHEN inspected THEN `PreflightService` has no `Handoff()` method. GIVEN `internal/orchestrate/` WHEN inspected THEN `HandoffService` type exists with `IterationRepo` constructor dependency. GIVEN `mind handoff <valid-iter-id>` THEN all 5 steps execute with output matching pre-refactor behavior.
+- **FR-147**: GIVEN a project where `mind check docs` reports `Failed > 0` WHEN `mind preflight "add feature"` runs THEN exit is non-zero with an error message naming failure count and referencing `mind check docs`. GIVEN docs with zero failures but warnings WHEN preflight runs THEN proceeds with warnings in result.
+- **FR-148**: GIVEN `mind.toml` with `default-branch = "develop"` WHEN `mind handoff` runs THEN `branchAhead()` compares against `develop`. GIVEN no `default-branch` setting THEN falls back to `"main"`. GIVEN `cmd/handoff.go` source THEN `"HEAD...main"` literal does NOT appear.
+- **FR-149**: GIVEN `internal/orchestrate/` WHEN inspected THEN `classify.go` exists. GIVEN `classify.go` contents THEN it delegates to `domain.Classify()` and `domain.Slugify()` without duplicating logic.
+- **FR-150**: GIVEN `internal/mcp/tools.go` WHEN searched for `splitOn` or `trimSpace` function definitions THEN zero matches. GIVEN `go test ./internal/mcp/...` THEN all tests pass.
+- **FR-151**: GIVEN `mind preflight "add feature" --json` WHEN run THEN output is valid JSON. GIVEN `cmd/preflight.go` WHEN inspected THEN `renderPreflightResult()` uses the `Renderer` type.

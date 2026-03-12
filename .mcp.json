@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "mind": {
+      "command": "mind",
+      "args": ["serve"],
+      "description": "Mind Framework project intelligence — 16 tools for docs, validation, iterations, and workflow state"
+    }
+  }
+}

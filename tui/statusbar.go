@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -16,6 +17,7 @@ var tabHints = [TabCount]string{
 }
 
 // renderStatusBar produces the bottom status bar.
+// info is shown on the right side (e.g. "3/15" cursor position).
 func renderStatusBar(width int, activeTab TabID, info string) string {
 	hints := tabHints[activeTab]
 
@@ -33,4 +35,20 @@ func renderStatusBar(width int, activeTab TabID, info string) string {
 	}
 
 	return style.Render(left + strings.Repeat(" ", gap) + right)
+}
+
+// cursorInfo returns a "cursor/total" string for list views, or "" if not applicable.
+func (v DocsView) CursorInfo() string {
+	if v.viewState != ViewReady || len(v.filtered) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%d/%d", v.cursor+1, len(v.filtered))
+}
+
+// CursorInfo returns a "cursor/total" string for the iterations list.
+func (v IterationsView) CursorInfo() string {
+	if v.viewState != ViewReady || len(v.filtered) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%d/%d", v.cursor+1, len(v.filtered))
 }

@@ -190,7 +190,13 @@ func (v DocsView) loadPreview(relPath string) tea.Cmd {
 }
 
 func (v DocsView) openEditor(relPath string) tea.Cmd {
-	return tea.ExecProcess(editorCmd(relPath), func(err error) tea.Msg {
+	cmd, err := editorCmd(relPath)
+	if err != nil {
+		return func() tea.Msg {
+			return previewErrorMsg{err: err}
+		}
+	}
+	return tea.ExecProcess(cmd, func(err error) tea.Msg {
 		return nil
 	})
 }

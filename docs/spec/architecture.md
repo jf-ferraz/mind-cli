@@ -63,7 +63,7 @@ Phase 1 delivers: `status`, `init`, `doctor`, `create` (6 artifact types), `docs
 | Validation engine | `internal/validate/` | Check framework: `Suite`, `Check`, `CheckFunc`, `CheckContext`. Suite runners: `DocsSuite()`, `RefsSuite()`, `ConfigSuite()` | `domain`, `internal/repo` |
 | Renderer | `internal/render/` | Output formatting: `Renderer`, `DetectMode()`, `TermWidth()`. Three modes: interactive (Lip Gloss), plain, JSON | `domain`, `golang.org/x/term` |
 | Document generator | `internal/generate/` | Template rendering for ADRs, blueprints, iterations, spikes, convergence, briefs. Sequence number derivation. | `domain` |
-| Repository interfaces | `internal/repo/interfaces.go` | `DocRepo`, `IterationRepo`, `StateRepo`, `ConfigRepo`, `BriefRepo` | `domain` |
+| Repository interfaces | `internal/repo/interfaces.go` | `DocRepo`, `IterationRepo`, `StateRepo` (ReadWorkflow, WriteWorkflow, AppendCurrentState), `ConfigRepo`, `BriefRepo` | `domain` |
 | FS implementations | `internal/repo/fs/` | Real filesystem implementations: `DocRepo`, `IterationRepo`, `ConfigRepo`, `BriefRepo`, `FindProjectRoot()`, `DetectProject()` | `domain`, `go-toml/v2` |
 | In-memory implementations | `internal/repo/mem/` | Test-only implementations backed by maps | `domain` |
 | Project detection | `internal/repo/fs/project.go` | Walk-up `.mind/` detection, `DetectProject()` with config loading | `domain`, `internal/repo/fs` |
@@ -74,6 +74,8 @@ Phase 1 delivers: `status`, `init`, `doctor`, `create` (6 artifact types), `docs
 | Service: Init | `internal/service/init.go` | Project initialization: directories, stubs, mind.toml, adapters | `domain`, `internal/generate` |
 | Service: Doctor | `internal/service/doctor.go` | Diagnostic checks across framework, docs, brief, config, iterations; auto-fix support | `domain`, `internal/generate`, `internal/repo` |
 | Service: Reconciliation | `internal/service/reconciliation.go` | Orchestrate config loading, lock I/O, engine execution | `domain`, `internal/reconcile`, `internal/repo` |
+| Service: Preflight | `internal/orchestrate/preflight.go` | 7-step pre-flight sequence: classify, brief gate, doc validation, create iteration, create branch, write workflow state, generate prompt | `domain`, `internal/repo`, `internal/service` |
+| Service: Handoff | `internal/orchestrate/handoff.go` | 5-step handoff sequence: artifact validation, gate run, current.md update via StateRepo, state clear, branch report | `domain`, `internal/repo`, `internal/service` |
 
 ### Dependency Matrix
 
@@ -515,3 +517,100 @@ domain/quality.go ─────> Go stdlib only
 | New command | `cmd/tui.go` added with TUI-specific wiring pattern |
 | DocRepo extension | `Search()` method added to `DocRepo` interface for TUI document search |
 | Wiring pattern | `BuildDeps()` function and `Deps` struct extracted from `PersistentPreRunE` |
+
+---
+
+## Phase 3: AI Bridge (Remediation)
+
+Phase 3 adds the `mind preflight`, `mind handoff`, and `mind serve` commands for AI agent orchestration and MCP integration. This section documents the architectural extensions introduced during iteration 005 (Phase 3 review and remediation). For full design rationale, see [architecture-delta.md](../iterations/005-COMPLEX_NEW-phase-3-review-and-remediation/architecture-delta.md).
+
+### Phase 3 Packages
+
+| Component | Package | Responsibility | Dependencies |
+|-----------|---------|----------------|-------------|
+| Preflight service | `internal/orchestrate/preflight.go` | 7-step pre-flight: classify request, run brief gate, validate docs (blocks on `Failed > 0`), create iteration folder, create git branch, write workflow state, generate prompt | `domain`, `internal/repo`, `internal/service` |
+| Handoff service | `internal/orchestrate/handoff.go` | 5-step handoff: artifact validation, gate run, `StateRepo.AppendCurrentState()`, `StateRepo.WriteWorkflow(nil)`, branch report | `domain`, `internal/repo`, `internal/service` |
+| Prompt builder | `internal/orchestrate/prompt.go` | Assemble agent dispatch prompt from `.mind/` convention files and iteration context | `domain`, `os` (direct I/O — tech debt, analogous to `hash.go` precedent) |
+| MCP server | `internal/mcp/server.go` | JSON-RPC 2.0 stdio transport, dispatch to 16 registered tools; notifications (no `id`) return nil — no response written | `domain`, `internal/service`, `internal/orchestrate` |
+| MCP tools | `internal/mcp/tools.go` | 16 tool handler functions for Claude Code integration | `domain`, `internal/service` |
+| MCP transport | `internal/mcp/transport.go` | Line-delimited JSON read/write over stdio | Go stdlib only |
+| Preflight command | `cmd/preflight.go` | `mind preflight "<request>"` and `--resume` flag; delegates to `PreflightService` | `internal/orchestrate`, `internal/deps` |
+| Handoff command | `cmd/handoff.go` | `mind handoff <iter-id>`; reads `cfg.Governance.DefaultBranch`, delegates to `HandoffService` | `internal/orchestrate`, `internal/deps` |
+| Serve command | `cmd/serve.go` | `mind serve`; starts MCP server over stdio | `internal/mcp`, `internal/deps` |
+
+### StateRepo Extension (Phase 3)
+
+`StateRepo` gains a third method to eliminate the layer violation in `cmd/handoff.go`:
+
+```
+AppendCurrentState(iter *domain.Iteration) error
+```
+
+Appends a completed iteration entry to `docs/state/current.md` under the `## Recent Changes` section. Implemented in `internal/repo/fs/state_repo.go` (filesystem) and `internal/repo/mem/state_repo.go` (in-memory, no-op for tests). See [architecture-delta.md](../iterations/005-COMPLEX_NEW-phase-3-review-and-remediation/architecture-delta.md) for full behavior specification.
+
+### mind.toml Governance Key: default-branch (Phase 3)
+
+The `domain.Governance` struct gains a `DefaultBranch string` field with TOML tag `default-branch`:
+
+```toml
+[governance]
+default-branch = "main"   # comparison base for git rev-list in mind handoff
+```
+
+**Flow**: `mind.toml` → `ConfigRepo.ReadProjectConfig()` → `domain.Config.Governance.DefaultBranch` → `cmd/handoff.go` → `HandoffService.Run(iterID, defaultBranch)`.
+
+**Fallback**: When the field is absent or empty, `cmd/handoff.go` falls back to `"main"`. The field is optional — no validation error for absent keys.
+
+### Updated Dependency Matrix (Phase 3 additions)
+
+```
+cmd/preflight.go ──────> internal/orchestrate (PreflightService)
+cmd/handoff.go ────────> internal/orchestrate (HandoffService)
+cmd/serve.go ──────────> internal/mcp (Server)
+
+internal/orchestrate/preflight ──> domain
+internal/orchestrate/preflight ──> internal/repo (BriefRepo, StateRepo)
+internal/orchestrate/preflight ──> internal/service (ValidationService, GenerateService)
+
+internal/orchestrate/handoff ────> domain
+internal/orchestrate/handoff ────> internal/repo (IterationRepo, StateRepo)
+internal/orchestrate/handoff ────> internal/service (ValidationService)
+
+internal/mcp/server ─────────────> domain
+internal/mcp/server ─────────────> internal/service
+internal/mcp/server ─────────────> internal/orchestrate
+
+internal/repo/fs/state_repo ─────> domain, os (AppendCurrentState uses ReadFile/WriteFile)
+internal/repo/mem/state_repo ────> domain (AppendCurrentState is a no-op)
+```
+
+### Phase 3 Key Decisions
+
+#### Decision: HandoffService as Distinct Type from PreflightService
+
+- **Choice**: `HandoffService` is a new, independent service struct in `internal/orchestrate/handoff.go`. It is not a method on `PreflightService` and does not embed it.
+- **Rationale**: `PreflightService` and `HandoffService` have different constructor dependencies (`BriefRepo`, `GenerateService`, `PromptBuilder` are preflight concerns; `IterationRepo` is a handoff concern) and different flows. Coupling them via embedding would require every `HandoffService` consumer to supply preflight dependencies. The convergence analysis guidance explicitly states: "preflight is about starting work, handoff is about completing it."
+- **Rejected alternatives**:
+  - **`Handoff()` method on `PreflightService`**: The existing stub always returned an error because it lacked `IterationRepo`. Adding `IterationRepo` to `PreflightService` would pollute a type that does not need it. Rejected.
+  - **Single `OrchestrateService`**: Merges preflight and handoff into one type. Violates single-responsibility. Rejected.
+- **Consequences**: `internal/deps/deps.go` carries both `PreflightSvc` and `HandoffSvc`. Two service constructors are called in `Build()`. This is the accepted pattern — each service has a focused scope.
+
+#### Decision: StateRepo.AppendCurrentState Accepts *domain.Iteration
+
+- **Choice**: The new `StateRepo` method accepts the full `*domain.Iteration` domain type. See [Decision: StateRepo AppendCurrentState Signature] in architecture-delta.md for full rationale.
+- **Consequences**: `fs/state_repo.go` reads `iter.DirName` and `iter.Seq` directly. The entry date is derived from `time.Now()` inside the implementation.
+
+#### Decision: DefaultBranch in domain.Governance
+
+- **Choice**: Add `DefaultBranch string` to the existing `Governance` struct rather than creating a new `[git]` section or reading from git config. See [Decision: mind.toml Default-Branch Governance Key] in architecture-delta.md for full rationale.
+- **Consequences**: `domain/project.go` gains one field. `go-toml/v2` auto-parses it via struct tag. No ConfigRepo changes needed.
+
+### Extension Points Activated by Phase 3
+
+| Extension Point | How It Was Used |
+|----------------|----------------|
+| New service (orchestrate) | `PreflightService` and `HandoffService` added in `internal/orchestrate/` — service-layer package consuming repos and services |
+| New package (mcp) | `internal/mcp/` added as a service-layer package exposing 16 tools via JSON-RPC 2.0 over stdio |
+| StateRepo extension | `AppendCurrentState(*domain.Iteration)` added to eliminate presentation-layer filesystem access |
+| domain.Governance extension | `DefaultBranch` field added for configurable git comparison base |
+| New commands | `cmd/preflight.go`, `cmd/handoff.go`, `cmd/serve.go` added with thin-handler pattern |

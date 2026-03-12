@@ -1,6 +1,8 @@
 package service
 
 import (
+	"fmt"
+
 	"github.com/jf-ferraz/mind-cli/domain"
 	"github.com/jf-ferraz/mind-cli/internal/repo"
 )
@@ -22,6 +24,25 @@ func NewWorkflowService(stateRepo repo.StateRepo, iterRepo repo.IterationRepo) *
 // Status returns the current workflow state.
 func (s *WorkflowService) Status() (*domain.WorkflowState, error) {
 	return s.stateRepo.ReadWorkflow()
+}
+
+// UpdateState persists a new workflow state.
+func (s *WorkflowService) UpdateState(state *domain.WorkflowState) error {
+	return s.stateRepo.WriteWorkflow(state)
+}
+
+// Show returns detailed information about a single iteration by sequence ID or dir name prefix.
+func (s *WorkflowService) Show(id string) (*domain.Iteration, error) {
+	iterations, err := s.iterRepo.List()
+	if err != nil {
+		return nil, fmt.Errorf("list iterations: %w", err)
+	}
+	for i, iter := range iterations {
+		if iter.DirName == id || fmt.Sprintf("%03d", iter.Seq) == id {
+			return &iterations[i], nil
+		}
+	}
+	return nil, fmt.Errorf("iteration %q not found", id)
 }
 
 // History returns all iterations as a summary list.
