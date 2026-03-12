@@ -146,6 +146,123 @@ func TestPropagateDownstream_EdgeTypeReasons(t *testing.T) {
 	}
 }
 
+// FR-127: Transitive propagation preserves edge-type-specific reasons at depth > 0.
+// Chain: A --(requires)--> B --(informs)--> C; A changes.
+// B should get "prerequisite changed" (from A->B requires edge).
+// C should get "may be outdated" (from B->C informs edge), NOT a generic fallback.
+func TestPropagateDownstream_FR127_MixedEdgeTypesRequiresInforms(t *testing.T) {
+	edges := []domain.GraphEdge{
+		{From: "A", To: "B", Type: domain.EdgeRequires},
+		{From: "B", To: "C", Type: domain.EdgeInforms},
+	}
+	g := domain.BuildGraph(edges)
+
+	staleMap, warnings := PropagateDownstream(g, []string{"A"}, map[string]bool{"A": true})
+
+	if len(warnings) != 0 {
+		t.Errorf("expected 0 warnings, got %v", warnings)
+	}
+
+	// B should reference the A->B edge type: "requires" -> "prerequisite changed"
+	bReason := staleMap["B"]
+	if !strings.Contains(bReason, "prerequisite changed") {
+		t.Errorf("B reason = %q, want to contain 'prerequisite changed'", bReason)
+	}
+
+	// C should reference the B->C edge type: "informs" -> "may be outdated"
+	cReason := staleMap["C"]
+	if !strings.Contains(cReason, "may be outdated") {
+		t.Errorf("C reason = %q, want to contain 'may be outdated' (from B->C informs edge)", cReason)
+	}
+	if !strings.Contains(cReason, "transitive") {
+		t.Errorf("C reason = %q, want to contain 'transitive'", cReason)
+	}
+}
+
+// FR-127: Chain A --(validates)--> B --(requires)--> C; A changes.
+// B should get "needs re-validation" (from A->B validates edge).
+// C should get "prerequisite changed" (from B->C requires edge).
+func TestPropagateDownstream_FR127_MixedEdgeTypesValidatesRequires(t *testing.T) {
+	edges := []domain.GraphEdge{
+		{From: "A", To: "B", Type: domain.EdgeValidates},
+		{From: "B", To: "C", Type: domain.EdgeRequires},
+	}
+	g := domain.BuildGraph(edges)
+
+	staleMap, _ := PropagateDownstream(g, []string{"A"}, map[string]bool{"A": true})
+
+	// B should reference the A->B edge type: "validates" -> "needs re-validation"
+	bReason := staleMap["B"]
+	if !strings.Contains(bReason, "needs re-validation") {
+		t.Errorf("B reason = %q, want to contain 'needs re-validation'", bReason)
+	}
+
+	// C should reference the B->C edge type: "requires" -> "prerequisite changed"
+	cReason := staleMap["C"]
+	if !strings.Contains(cReason, "prerequisite changed") {
+		t.Errorf("C reason = %q, want to contain 'prerequisite changed' (from B->C requires edge)", cReason)
+	}
+}
+
+// FR-127: Four-node chain with all three edge types.
+// A --(requires)--> B --(informs)--> C --(validates)--> D; A changes.
+// Each node's reason should reflect its immediate incoming edge type.
+func TestPropagateDownstream_FR127_ThreeEdgeTypeChain(t *testing.T) {
+	edges := []domain.GraphEdge{
+		{From: "A", To: "B", Type: domain.EdgeRequires},
+		{From: "B", To: "C", Type: domain.EdgeInforms},
+		{From: "C", To: "D", Type: domain.EdgeValidates},
+	}
+	g := domain.BuildGraph(edges)
+
+	staleMap, _ := PropagateDownstream(g, []string{"A"}, map[string]bool{"A": true})
+
+	// B: depth 0, requires -> "prerequisite changed"
+	if !strings.Contains(staleMap["B"], "prerequisite changed") {
+		t.Errorf("B reason = %q, want 'prerequisite changed'", staleMap["B"])
+	}
+	// C: depth 1, informs -> "may be outdated"
+	if !strings.Contains(staleMap["C"], "may be outdated") {
+		t.Errorf("C reason = %q, want 'may be outdated'", staleMap["C"])
+	}
+	// D: depth 2, validates -> "needs re-validation"
+	if !strings.Contains(staleMap["D"], "needs re-validation") {
+		t.Errorf("D reason = %q, want 'needs re-validation'", staleMap["D"])
+	}
+}
+
+// FR-127: Verify depth > 0 reasons never contain generic fallback when edge type is known.
+// All three edge types at depth 1 should produce their specific reason string.
+func TestPropagateDownstream_FR127_AllEdgeTypesAtDepthOne(t *testing.T) {
+	tests := []struct {
+		name           string
+		depth1EdgeType domain.EdgeType
+		expectedReason string
+	}{
+		{"informs at depth 1", domain.EdgeInforms, "may be outdated"},
+		{"requires at depth 1", domain.EdgeRequires, "prerequisite changed"},
+		{"validates at depth 1", domain.EdgeValidates, "needs re-validation"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			edges := []domain.GraphEdge{
+				{From: "A", To: "B", Type: domain.EdgeInforms},    // depth 0 edge
+				{From: "B", To: "C", Type: tt.depth1EdgeType},     // depth 1 edge
+			}
+			g := domain.BuildGraph(edges)
+
+			staleMap, _ := PropagateDownstream(g, []string{"A"}, map[string]bool{"A": true})
+
+			cReason := staleMap["C"]
+			if !strings.Contains(cReason, tt.expectedReason) {
+				t.Errorf("C reason = %q, want to contain %q for edge type %q at depth 1",
+					cReason, tt.expectedReason, tt.depth1EdgeType)
+			}
+		})
+	}
+}
+
 func TestPropagateDownstream_DepthLimit(t *testing.T) {
 	// Build chain: n01 --> n02 --> ... --> n12 (11 edges, 12 nodes)
 	names := make([]string, 13)

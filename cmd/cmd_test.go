@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -167,6 +168,136 @@ func executeWithRoot(root string, args ...string) error {
 	rootCmd.SetArgs(fullArgs)
 
 	return rootCmd.Execute()
+}
+
+// FR-129: ExitError.Error() returns the wrapped error message.
+func TestExitError_Error(t *testing.T) {
+	tests := []struct {
+		name string
+		err  *ExitError
+		want string
+	}{
+		{
+			name: "with wrapped error",
+			err:  &ExitError{Code: 1, Err: fmt.Errorf("validation failed")},
+			want: "validation failed",
+		},
+		{
+			name: "with nil error",
+			err:  &ExitError{Code: 2, Err: nil},
+			want: "exit code 2",
+		},
+		{
+			name: "quiet with wrapped error",
+			err:  &ExitError{Code: 1, Err: fmt.Errorf("check failed"), Quiet: true},
+			want: "check failed",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.err.Error()
+			if got != tt.want {
+				t.Errorf("ExitError.Error() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// FR-129: ExitError.Unwrap() returns the underlying error for errors.Is/As chains.
+func TestExitError_Unwrap(t *testing.T) {
+	inner := fmt.Errorf("inner error")
+	exitErr := &ExitError{Code: 2, Err: inner}
+
+	unwrapped := exitErr.Unwrap()
+	if unwrapped != inner {
+		t.Errorf("Unwrap() = %v, want %v", unwrapped, inner)
+	}
+}
+
+// FR-129: ExitError.Unwrap() returns nil when no wrapped error.
+func TestExitError_UnwrapNil(t *testing.T) {
+	exitErr := &ExitError{Code: 1}
+	if exitErr.Unwrap() != nil {
+		t.Errorf("Unwrap() = %v, want nil", exitErr.Unwrap())
+	}
+}
+
+// FR-129: errors.As extracts ExitError from wrapped error chains.
+func TestExitError_ErrorsAs(t *testing.T) {
+	inner := fmt.Errorf("config not found")
+	exitErr := exitConfig(inner)
+
+	// Wrap it once more to test chain traversal
+	wrapped := fmt.Errorf("command failed: %w", exitErr)
+
+	var extracted *ExitError
+	if !errors.As(wrapped, &extracted) {
+		t.Fatal("errors.As failed to extract ExitError from wrapped chain")
+	}
+	if extracted.Code != 3 {
+		t.Errorf("extracted.Code = %d, want 3", extracted.Code)
+	}
+	if extracted.Err.Error() != "config not found" {
+		t.Errorf("extracted.Err = %q, want %q", extracted.Err.Error(), "config not found")
+	}
+}
+
+// FR-129: Convenience constructors produce correct exit codes.
+func TestExitError_Constructors(t *testing.T) {
+	tests := []struct {
+		name string
+		err  *ExitError
+		code int
+	}{
+		{"exitValidation", exitValidation(fmt.Errorf("v")), 1},
+		{"exitRuntime", exitRuntime(fmt.Errorf("r")), 2},
+		{"exitConfig", exitConfig(fmt.Errorf("c")), 3},
+		{"exitStaleness", exitStaleness(fmt.Errorf("s")), 4},
+		{"exitQuiet", exitQuiet(1), 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.err.Code != tt.code {
+				t.Errorf("Code = %d, want %d", tt.err.Code, tt.code)
+			}
+		})
+	}
+}
+
+// FR-129: exitQuiet sets the Quiet flag.
+func TestExitError_QuietFlag(t *testing.T) {
+	e := exitQuiet(4)
+	if !e.Quiet {
+		t.Error("exitQuiet should set Quiet = true")
+	}
+	if e.Code != 4 {
+		t.Errorf("exitQuiet code = %d, want 4", e.Code)
+	}
+
+	// Non-quiet constructors should not set Quiet
+	v := exitValidation(fmt.Errorf("x"))
+	if v.Quiet {
+		t.Error("exitValidation should not set Quiet")
+	}
+}
+
+// FR-128: The --project-root flag is registered on rootCmd.
+func TestProjectRootFlagRegistered(t *testing.T) {
+	flag := rootCmd.PersistentFlags().Lookup("project-root")
+	if flag == nil {
+		t.Fatal("--project-root flag not registered on rootCmd")
+	}
+	if flag.Shorthand != "p" {
+		t.Errorf("--project-root shorthand = %q, want %q", flag.Shorthand, "p")
+	}
+}
+
+// FR-128: The old --project flag does not exist.
+func TestOldProjectFlagRemoved(t *testing.T) {
+	flag := rootCmd.PersistentFlags().Lookup("project")
+	if flag != nil {
+		t.Error("old --project flag should not exist; expected --project-root")
+	}
 }
 
 func TestCheckDocsExitCodePass(t *testing.T) {
