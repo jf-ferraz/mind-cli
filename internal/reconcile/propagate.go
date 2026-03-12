@@ -16,6 +16,8 @@ func edgeTypeReason(edgeType domain.EdgeType) string {
 		return "prerequisite changed"
 	case domain.EdgeValidates:
 		return "needs re-validation"
+	case domain.EdgeInforms:
+		return "may be outdated"
 	default:
 		return "may be outdated"
 	}
@@ -32,6 +34,7 @@ func PropagateDownstream(graph *domain.Graph, changedIDs []string, changedSet ma
 		nodeID   string
 		sourceID string
 		depth    int
+		edgeType domain.EdgeType // edge type from the immediate predecessor
 	}
 
 	queue := make([]queueItem, 0, len(changedIDs)*2)
@@ -43,6 +46,7 @@ func PropagateDownstream(graph *domain.Graph, changedIDs []string, changedSet ma
 				nodeID:   edge.To,
 				sourceID: changedID,
 				depth:    0,
+				edgeType: edge.Type,
 			})
 		}
 	}
@@ -69,8 +73,8 @@ func PropagateDownstream(graph *domain.Graph, changedIDs []string, changedSet ma
 			continue
 		}
 
-		// Determine the edge type for the reason message
-		reason := buildReason(graph, item.sourceID, item.nodeID, item.depth)
+		// Build reason using the edge type carried on the queue item
+		reason := buildReason(item.sourceID, item.edgeType, item.depth)
 		staleMap[item.nodeID] = reason
 
 		// Enqueue downstream dependents for transitive propagation
@@ -79,6 +83,7 @@ func PropagateDownstream(graph *domain.Graph, changedIDs []string, changedSet ma
 				nodeID:   edge.To,
 				sourceID: item.sourceID,
 				depth:    item.depth + 1,
+				edgeType: edge.Type,
 			})
 		}
 	}
@@ -86,19 +91,11 @@ func PropagateDownstream(graph *domain.Graph, changedIDs []string, changedSet ma
 	return staleMap, warnings
 }
 
-// buildReason constructs a staleness reason string using the edge type between source and target.
-func buildReason(graph *domain.Graph, sourceID, targetID string, depth int) string {
-	// Find the edge type from the reverse edges (what edge points to targetID from its immediate upstream)
-	edgeReason := "may be outdated"
-	for _, edge := range graph.Reverse[targetID] {
-		if depth == 0 && edge.From == sourceID {
-			edgeReason = edgeTypeReason(edge.Type)
-			break
-		}
-	}
-
+// buildReason constructs a staleness reason string using the edge type from the immediate predecessor.
+func buildReason(sourceID string, edgeType domain.EdgeType, depth int) string {
+	reason := edgeTypeReason(edgeType)
 	if depth == 0 {
-		return fmt.Sprintf("dependency changed: %s (%s)", sourceID, edgeReason)
+		return fmt.Sprintf("dependency changed: %s (%s)", sourceID, reason)
 	}
-	return fmt.Sprintf("dependency changed: %s (via transitive chain, %s)", sourceID, edgeReason)
+	return fmt.Sprintf("dependency changed: %s (via transitive chain, %s)", sourceID, reason)
 }
