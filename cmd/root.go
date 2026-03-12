@@ -16,7 +16,54 @@ var (
 	flagProject string
 )
 
-// Centralized wiring: package-level variables populated by PersistentPreRunE.
+// Deps holds all repositories and services. Constructed once via BuildDeps,
+// shared by both CLI command handlers and the TUI.
+type Deps struct {
+	ProjectRoot   string
+	Renderer      *render.Renderer
+	DocRepo       *fs.DocRepo
+	IterRepo      *fs.IterationRepo
+	BriefRepo     *fs.BriefRepo
+	ConfigRepo    *fs.ConfigRepo
+	LockRepo      *fs.LockRepo
+	StateRepo     *fs.StateRepo
+	ProjectSvc    *service.ProjectService
+	ValidationSvc *service.ValidationService
+	ReconcileSvc  *service.ReconciliationService
+	DoctorSvc     *service.DoctorService
+	WorkflowSvc   *service.WorkflowService
+	GenerateSvc   *service.GenerateService
+}
+
+// BuildDeps constructs all repositories and services for a given project root.
+// Renderer may be nil when called from the TUI (which uses Lip Gloss directly).
+func BuildDeps(root string, r *render.Renderer) *Deps {
+	docRepo := fs.NewDocRepo(root)
+	iterRepo := fs.NewIterationRepo(root)
+	stateRepo := fs.NewStateRepo(root)
+	briefRepo := fs.NewBriefRepo(docRepo)
+	configRepo := fs.NewConfigRepo(root)
+	lockRepo := fs.NewLockRepo(root)
+
+	return &Deps{
+		ProjectRoot:   root,
+		Renderer:      r,
+		DocRepo:       docRepo,
+		IterRepo:      iterRepo,
+		BriefRepo:     briefRepo,
+		ConfigRepo:    configRepo,
+		LockRepo:      lockRepo,
+		StateRepo:     stateRepo,
+		ProjectSvc:    service.NewProjectService(docRepo, iterRepo, stateRepo, briefRepo),
+		ValidationSvc: service.NewValidationService(docRepo, iterRepo, briefRepo, configRepo),
+		ReconcileSvc:  service.NewReconciliationService(configRepo, docRepo, lockRepo),
+		DoctorSvc:     service.NewDoctorService(root, docRepo, iterRepo, briefRepo, configRepo, lockRepo),
+		WorkflowSvc:   service.NewWorkflowService(stateRepo, iterRepo),
+		GenerateSvc:   service.NewGenerateService(root),
+	}
+}
+
+// Package-level variables for CLI command handlers (populated from Deps).
 var (
 	projectRoot   string
 	renderer      *render.Renderer
@@ -53,27 +100,23 @@ manages iterations, and bridges AI agent workflows.`,
 			}
 			return err
 		}
-		projectRoot = root
 
-		// Create renderer
 		mode := render.DetectMode(flagJSON, flagNoColor)
-		renderer = render.New(mode, render.TermWidth())
+		r := render.New(mode, render.TermWidth())
+		deps := BuildDeps(root, r)
 
-		// Create repositories
-		docRepo = fs.NewDocRepo(root)
-		iterRepo = fs.NewIterationRepo(root)
-		stateRepo := fs.NewStateRepo(root)
-		briefRepo = fs.NewBriefRepo(docRepo)
-		configRepo := fs.NewConfigRepo(root)
-		lockRepo := fs.NewLockRepo(root)
-
-		// Create services
-		reconcileSvc = service.NewReconciliationService(configRepo, docRepo, lockRepo)
-		validationSvc = service.NewValidationService(docRepo, iterRepo, briefRepo, configRepo)
-		doctorSvc = service.NewDoctorService(root, docRepo, iterRepo, briefRepo, configRepo, lockRepo)
-		projectSvc = service.NewProjectService(docRepo, iterRepo, stateRepo, briefRepo)
-		workflowSvc = service.NewWorkflowService(stateRepo, iterRepo)
-		generateSvc = service.NewGenerateService(root)
+		// Populate package-level variables for CLI command handlers
+		projectRoot = deps.ProjectRoot
+		renderer = deps.Renderer
+		docRepo = deps.DocRepo
+		iterRepo = deps.IterRepo
+		briefRepo = deps.BriefRepo
+		reconcileSvc = deps.ReconcileSvc
+		validationSvc = deps.ValidationSvc
+		doctorSvc = deps.DoctorSvc
+		projectSvc = deps.ProjectSvc
+		workflowSvc = deps.WorkflowSvc
+		generateSvc = deps.GenerateSvc
 
 		return nil
 	},
@@ -95,13 +138,13 @@ func Execute() error {
 }
 
 // requiresProject returns true if the command needs project wiring.
-// Commands like version, help, init, and completion do not require a project.
+// Commands like version, help, init, completion, and tui do not require
+// standard CLI wiring (tui handles its own wiring via BuildDeps).
 func requiresProject(cmd *cobra.Command) bool {
 	name := cmd.Name()
 
-	// Commands that do not require a project
 	switch name {
-	case "version", "help", "init", "completion",
+	case "version", "help", "init", "completion", "tui",
 		"mind": // root command itself
 		return false
 	}
