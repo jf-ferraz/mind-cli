@@ -1,6 +1,7 @@
 package deps
 
 import (
+	"github.com/jf-ferraz/mind-cli/internal/orchestrate"
 	"github.com/jf-ferraz/mind-cli/internal/render"
 	"github.com/jf-ferraz/mind-cli/internal/repo"
 	"github.com/jf-ferraz/mind-cli/internal/repo/fs"
@@ -25,6 +26,8 @@ type Deps struct {
 	DoctorSvc     *service.DoctorService
 	WorkflowSvc   *service.WorkflowService
 	GenerateSvc   *service.GenerateService
+	QualitySvc    *service.QualityService
+	HandoffSvc    *orchestrate.HandoffService
 }
 
 // Build constructs all repositories and services for a given project root.
@@ -38,6 +41,8 @@ func Build(root string, r *render.Renderer) *Deps {
 	lockRepo := fs.NewLockRepo(root)
 	qualityRepo := fs.NewQualityRepo(root)
 
+	validationSvc := service.NewValidationService(docRepo, iterRepo, briefRepo, configRepo)
+
 	return &Deps{
 		ProjectRoot:   root,
 		Renderer:      r,
@@ -48,11 +53,13 @@ func Build(root string, r *render.Renderer) *Deps {
 		LockRepo:      lockRepo,
 		StateRepo:     stateRepo,
 		QualityRepo:   qualityRepo,
-		ProjectSvc:    service.NewProjectService(docRepo, iterRepo, stateRepo, briefRepo),
-		ValidationSvc: service.NewValidationService(docRepo, iterRepo, briefRepo, configRepo),
+		ProjectSvc:    service.NewProjectServiceWithConfig(docRepo, iterRepo, stateRepo, briefRepo, configRepo),
+		ValidationSvc: validationSvc,
 		ReconcileSvc:  service.NewReconciliationService(configRepo, docRepo, lockRepo),
 		DoctorSvc:     service.NewDoctorService(root, docRepo, iterRepo, briefRepo, configRepo, lockRepo),
 		WorkflowSvc:   service.NewWorkflowService(stateRepo, iterRepo),
 		GenerateSvc:   service.NewGenerateService(root),
+		QualitySvc:    service.NewQualityService(root, qualityRepo),
+		HandoffSvc:    orchestrate.NewHandoffService(root, iterRepo, stateRepo, validationSvc),
 	}
 }

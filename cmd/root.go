@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/jf-ferraz/mind-cli/internal/deps"
+	"github.com/jf-ferraz/mind-cli/internal/orchestrate"
 	"github.com/jf-ferraz/mind-cli/internal/render"
 	"github.com/jf-ferraz/mind-cli/internal/repo"
 	"github.com/jf-ferraz/mind-cli/internal/service"
@@ -37,9 +38,13 @@ var (
 	projectSvc    *service.ProjectService
 	workflowSvc   *service.WorkflowService
 	generateSvc   *service.GenerateService
+	qualitySvc    *service.QualityService
+	handoffSvc    *orchestrate.HandoffService
 	docRepo       repo.DocRepo
 	iterRepo      repo.IterationRepo
 	briefRepo     repo.BriefRepo
+	stateRepo     repo.StateRepo
+	configRepo    repo.ConfigRepo
 )
 
 var rootCmd = &cobra.Command{
@@ -74,12 +79,16 @@ manages iterations, and bridges AI agent workflows.`,
 		docRepo = deps.DocRepo
 		iterRepo = deps.IterRepo
 		briefRepo = deps.BriefRepo
+		stateRepo = deps.StateRepo
+		configRepo = deps.ConfigRepo
 		reconcileSvc = deps.ReconcileSvc
 		validationSvc = deps.ValidationSvc
 		doctorSvc = deps.DoctorSvc
 		projectSvc = deps.ProjectSvc
 		workflowSvc = deps.WorkflowSvc
 		generateSvc = deps.GenerateSvc
+		qualitySvc = deps.QualitySvc
+		handoffSvc = deps.HandoffSvc
 
 		return nil
 	},
@@ -114,7 +123,7 @@ func requiresProject(cmd *cobra.Command) bool {
 	name := cmd.Name()
 
 	switch name {
-	case "version", "help", "init", "completion", "tui",
+	case "version", "help", "init", "completion", "tui", "serve",
 		"mind": // root command itself
 		return false
 	}
