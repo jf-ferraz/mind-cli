@@ -19,6 +19,7 @@ type PreflightResult struct {
 	IterationPath string
 	BriefGate     domain.BriefGate
 	DocsReport    domain.ValidationReport
+	DocWarnings   int
 	Prompt        string
 	Warnings      []string
 }
@@ -75,9 +76,13 @@ func (s *PreflightService) Run(request string) (*PreflightResult, error) {
 		result.Warnings = append(result.Warnings, warn)
 	}
 
-	// Step 3: Validate documentation (non-blocking)
+	// Step 3: Validate documentation — block on hard failures, proceed on warnings
 	docsReport := s.validationSvc.RunDocs(s.projectRoot, false)
 	result.DocsReport = docsReport
+	if docsReport.Failed > 0 {
+		return nil, fmt.Errorf("preflight blocked: %d documentation check(s) failed — run 'mind check docs' for details", docsReport.Failed)
+	}
+	result.DocWarnings = docsReport.Warnings
 
 	// Step 4: Create iteration folder
 	typeStr := typeToString(reqType)
