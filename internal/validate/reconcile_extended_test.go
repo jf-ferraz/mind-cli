@@ -22,12 +22,15 @@ func TestReconcileSuite_MissingDocuments(t *testing.T) {
 
 	report := ReconcileSuite(result, false)
 
-	// 1 cycle check + 0 stale checks (missing docs are not stale checks)
-	if report.Total != 1 {
-		t.Errorf("Total = %d, want 1 (cycle check only, missing not projected as checks)", report.Total)
+	// 1 cycle check + 2 missing document checks = 3
+	if report.Total != 3 {
+		t.Errorf("Total = %d, want 3 (cycle + 2 missing)", report.Total)
 	}
 	if report.Passed != 1 {
 		t.Errorf("Passed = %d, want 1", report.Passed)
+	}
+	if report.Warnings != 2 {
+		t.Errorf("Warnings = %d, want 2", report.Warnings)
 	}
 }
 
@@ -50,12 +53,13 @@ func TestReconcileSuite_MixedStaleAndMissing(t *testing.T) {
 
 	report := ReconcileSuite(result, false)
 
-	// 1 cycle + 2 stale
-	if report.Total != 3 {
-		t.Errorf("Total = %d, want 3", report.Total)
+	// 1 cycle + 1 missing doc check + 2 stale = 4
+	if report.Total != 4 {
+		t.Errorf("Total = %d, want 4", report.Total)
 	}
-	if report.Warnings != 2 {
-		t.Errorf("Warnings = %d, want 2 (stale docs are WARN)", report.Warnings)
+	// 1 missing (WARN) + 2 stale (WARN) = 3
+	if report.Warnings != 3 {
+		t.Errorf("Warnings = %d, want 3 (1 missing + 2 stale docs are WARN)", report.Warnings)
 	}
 }
 
@@ -75,7 +79,7 @@ func TestReconcileSuite_StrictPromotesWarnToFail(t *testing.T) {
 		},
 	}
 
-	// Without strict
+	// Without strict: 1 cycle + 1 no-missing + 3 stale = 5
 	normalReport := ReconcileSuite(result, false)
 	if normalReport.Failed != 0 {
 		t.Errorf("normal mode Failed = %d, want 0", normalReport.Failed)
@@ -84,7 +88,7 @@ func TestReconcileSuite_StrictPromotesWarnToFail(t *testing.T) {
 		t.Errorf("normal mode Warnings = %d, want 3", normalReport.Warnings)
 	}
 
-	// With strict
+	// With strict: 1 cycle + 1 no-missing + 3 stale(FAIL) = 5
 	strictReport := ReconcileSuite(result, true)
 	if strictReport.Failed != 3 {
 		t.Errorf("strict mode Failed = %d, want 3", strictReport.Failed)

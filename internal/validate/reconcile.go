@@ -45,6 +45,38 @@ func ReconcileSuite(result *domain.ReconcileResult, strict bool) domain.Validati
 	report.Passed++
 	checkID++
 
+	// Check 2: No missing documents
+	if len(result.Missing) == 0 {
+		report.Checks = append(report.Checks, domain.CheckResult{
+			ID:     checkID,
+			Name:   "No missing documents",
+			Level:  domain.LevelWarn,
+			Passed: true,
+		})
+		report.Passed++
+	} else {
+		for _, id := range result.Missing {
+			level := domain.LevelWarn
+			if strict {
+				level = domain.LevelFail
+			}
+			report.Checks = append(report.Checks, domain.CheckResult{
+				ID:      checkID,
+				Name:    fmt.Sprintf("Document exists: %s", id),
+				Level:   level,
+				Passed:  false,
+				Message: fmt.Sprintf("declared in mind.toml but not found on disk: %s", id),
+			})
+			if level == domain.LevelFail {
+				report.Failed++
+			} else {
+				report.Warnings++
+			}
+			checkID++
+		}
+	}
+	checkID++
+
 	// Check per stale document
 	for id, reason := range result.Stale {
 		level := domain.LevelWarn

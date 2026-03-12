@@ -37,6 +37,12 @@ func init() {
 }
 
 func runReconcile(cmd *cobra.Command, args []string) error {
+	if flagReconcileCheck && flagReconcileForce {
+		fmt.Fprintln(os.Stderr, "Error: --check and --force are mutually exclusive")
+		os.Exit(2)
+		return nil
+	}
+
 	opts := domain.ReconcileOpts{
 		CheckOnly: flagReconcileCheck,
 		Force:     flagReconcileForce,

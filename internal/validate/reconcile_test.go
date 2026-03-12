@@ -34,11 +34,12 @@ func TestReconcileSuite_Clean(t *testing.T) {
 
 	report := ReconcileSuite(result, false)
 
-	if report.Total != 1 {
-		t.Errorf("Total = %d, want 1 (only cycle check)", report.Total)
+	// 1 cycle check + 1 "no missing documents" check = 2
+	if report.Total != 2 {
+		t.Errorf("Total = %d, want 2 (cycle + no-missing)", report.Total)
 	}
-	if report.Passed != 1 {
-		t.Errorf("Passed = %d, want 1", report.Passed)
+	if report.Passed != 2 {
+		t.Errorf("Passed = %d, want 2", report.Passed)
 	}
 	if report.Failed != 0 {
 		t.Errorf("Failed = %d, want 0", report.Failed)
@@ -61,12 +62,12 @@ func TestReconcileSuite_Stale(t *testing.T) {
 
 	report := ReconcileSuite(result, false)
 
-	// 1 cycle check + 2 stale checks
-	if report.Total != 3 {
-		t.Errorf("Total = %d, want 3", report.Total)
+	// 1 cycle check + 1 no-missing check + 2 stale checks = 4
+	if report.Total != 4 {
+		t.Errorf("Total = %d, want 4", report.Total)
 	}
-	if report.Passed != 1 {
-		t.Errorf("Passed = %d, want 1", report.Passed)
+	if report.Passed != 2 {
+		t.Errorf("Passed = %d, want 2", report.Passed)
 	}
 	if report.Warnings != 2 {
 		t.Errorf("Warnings = %d, want 2", report.Warnings)
@@ -91,8 +92,9 @@ func TestReconcileSuite_StaleStrict(t *testing.T) {
 
 	report := ReconcileSuite(result, true)
 
-	if report.Total != 2 {
-		t.Errorf("Total = %d, want 2", report.Total)
+	// 1 cycle + 1 no-missing + 1 stale = 3
+	if report.Total != 3 {
+		t.Errorf("Total = %d, want 3", report.Total)
 	}
 	if report.Failed != 1 {
 		t.Errorf("Failed = %d, want 1 (strict promotes WARN to FAIL)", report.Failed)
