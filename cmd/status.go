@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/jf-ferraz/mind-cli/domain"
-	"github.com/jf-ferraz/mind-cli/internal/repo/fs"
 	"github.com/spf13/cobra"
 )
 
@@ -20,7 +19,7 @@ func init() {
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
-	project, err := fs.DetectProject(projectRoot)
+	project, err := projectSvc.DetectProject(projectRoot)
 	if err != nil {
 		return err
 	}

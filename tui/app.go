@@ -8,7 +8,6 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/jf-ferraz/mind-cli/internal/deps"
-	"github.com/jf-ferraz/mind-cli/internal/repo/fs"
 )
 
 // App is the top-level Bubble Tea model for the TUI dashboard.
@@ -36,7 +35,7 @@ type App struct {
 func NewApp(deps *deps.Deps, version string) App {
 	// Detect project info
 	name := ""
-	if project, err := fs.DetectProject(deps.ProjectRoot); err == nil {
+	if project, err := deps.ProjectSvc.DetectProject(deps.ProjectRoot); err == nil {
 		name = project.Name
 	}
 
@@ -338,7 +337,7 @@ func (a App) activeTabView() string {
 
 func (a App) loadHealth() tea.Cmd {
 	return func() tea.Msg {
-		project, err := fs.DetectProject(a.deps.ProjectRoot)
+		project, err := a.deps.ProjectSvc.DetectProject(a.deps.ProjectRoot)
 		if err != nil {
 			return healthErrorMsg{err: err}
 		}

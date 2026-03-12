@@ -6,7 +6,7 @@ import (
 
 	"github.com/jf-ferraz/mind-cli/internal/deps"
 	"github.com/jf-ferraz/mind-cli/internal/render"
-	"github.com/jf-ferraz/mind-cli/internal/repo/fs"
+	"github.com/jf-ferraz/mind-cli/internal/repo"
 	"github.com/jf-ferraz/mind-cli/internal/service"
 	"github.com/spf13/cobra"
 )
@@ -36,9 +36,9 @@ var (
 	projectSvc    *service.ProjectService
 	workflowSvc   *service.WorkflowService
 	generateSvc   *service.GenerateService
-	docRepo       *fs.DocRepo
-	iterRepo      *fs.IterationRepo
-	briefRepo     *fs.BriefRepo
+	docRepo       repo.DocRepo
+	iterRepo      repo.IterationRepo
+	briefRepo     repo.BriefRepo
 )
 
 var rootCmd = &cobra.Command{

@@ -2,6 +2,7 @@ package deps
 
 import (
 	"github.com/jf-ferraz/mind-cli/internal/render"
+	"github.com/jf-ferraz/mind-cli/internal/repo"
 	"github.com/jf-ferraz/mind-cli/internal/repo/fs"
 	"github.com/jf-ferraz/mind-cli/internal/service"
 )
@@ -11,13 +12,13 @@ import (
 type Deps struct {
 	ProjectRoot   string
 	Renderer      *render.Renderer
-	DocRepo       *fs.DocRepo
-	IterRepo      *fs.IterationRepo
-	BriefRepo     *fs.BriefRepo
-	ConfigRepo    *fs.ConfigRepo
-	LockRepo      *fs.LockRepo
-	StateRepo     *fs.StateRepo
-	QualityRepo   *fs.QualityRepo
+	DocRepo       repo.DocRepo
+	IterRepo      repo.IterationRepo
+	BriefRepo     repo.BriefRepo
+	ConfigRepo    repo.ConfigRepo
+	LockRepo      repo.LockRepo
+	StateRepo     repo.StateRepo
+	QualityRepo   repo.QualityRepo
 	ProjectSvc    *service.ProjectService
 	ValidationSvc *service.ValidationService
 	ReconcileSvc  *service.ReconciliationService

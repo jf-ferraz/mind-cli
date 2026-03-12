@@ -5,6 +5,7 @@ import (
 
 	"github.com/jf-ferraz/mind-cli/domain"
 	"github.com/jf-ferraz/mind-cli/internal/repo"
+	"github.com/jf-ferraz/mind-cli/internal/repo/fs"
 )
 
 // ProjectService orchestrates project detection and health assembly.
@@ -28,6 +29,11 @@ func NewProjectService(
 		stateRepo: stateRepo,
 		briefRepo: briefRepo,
 	}
+}
+
+// DetectProject builds a Project from the filesystem at the given root.
+func (s *ProjectService) DetectProject(root string) (*domain.Project, error) {
+	return fs.DetectProject(root)
 }
 
 // AssembleHealth builds the ProjectHealth aggregate from all data sources.
