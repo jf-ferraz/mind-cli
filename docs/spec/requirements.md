@@ -4,7 +4,7 @@
 
 Phase 1 of mind-cli delivers a deterministic CLI that replaces the Mind Agent Framework's 9 bash scripts with a single Go binary. It provides project health diagnostics, 17-check documentation validation, 11-check cross-reference validation, document scaffolding for 6 artifact types, workflow state inspection, and three output modes (interactive, plain, JSON) -- all accessed through a unified `mind` command with `--json` support on every subcommand.
 
-This document covers Phase 1 (Core CLI) only. Reconciliation (Phase 1.5), TUI (Phase 2), MCP server (Phase 3), watch mode and orchestration (Phase 4) are explicitly out of scope.
+This document covers Phase 1 (Core CLI), Phase 1.5 (Reconciliation Engine), Phase 2 (TUI Dashboard), and the pre-Phase 3 cleanup iteration. Phase 1.5 requirements (FR-51 through FR-87) are appended below the Phase 1 section. Phase 2 requirements (FR-88 through FR-124) follow. Pre-Phase 3 cleanup requirements (FR-125 through FR-139) address interface consistency, type safety, test coverage, and documentation accuracy.
 
 ## Scope Boundary
 
@@ -19,11 +19,14 @@ This document covers Phase 1 (Core CLI) only. Reconciliation (Phase 1.5), TUI (P
 - Cross-cutting: --json flag, project root detection, mind.toml parsing, exit codes
 
 **Out-of-scope**:
-- Reconciliation engine, mind.lock, staleness propagation (Phase 1.5)
-- TUI dashboard (Phase 2)
 - MCP server, pre-flight, handoff (Phase 3)
 - Watch mode, full orchestration (Phase 4)
 - Shell completions (Phase 5)
+
+**Delivered in later phases (requirements appended below)**:
+- Reconciliation engine, mind.lock, staleness propagation (Phase 1.5, FR-51 through FR-87)
+- TUI dashboard (Phase 2, FR-88 through FR-124)
+- Pre-Phase 3 cleanup: interface migration, type safety, test coverage (FR-125 through FR-139)
 
 ## Functional Requirements
 

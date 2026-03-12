@@ -2,7 +2,7 @@
 
 ## Active Work
 
-None — iteration 003-phase-2-tui-dashboard is complete.
+None — iteration 004-pre-phase-3-cleanup is complete.
 
 ## Known Issues
 
@@ -11,8 +11,6 @@ None — iteration 003-phase-2-tui-dashboard is complete.
 - **SHOULD**: Status bar lacks cursor position info for lists (S-3, tui/statusbar.go)
 - **SHOULD**: 9 component files inlined into tab views instead of separate files (S-4)
 - **SHOULD**: FR-88 (--check/--force exclusion) tested by code inspection only — no unit test (S-5)
-- **SHOULD**: Transitive propagation loses edge-type-specific reason strings at depth > 0 (S-3 from Phase 1.5)
-- **SHOULD**: `--project` flag should be `--project-root` per api-contracts spec
 - **SHOULD**: 5 exported methods in fs/doc_repo.go lack GoDoc comments (NFR-8)
 - **COULD**: DoctorService reimplements checks instead of delegating to ValidationService
 - **COULD**: Graph rendering is flat adjacency list rather than rooted tree
@@ -20,6 +18,16 @@ None — iteration 003-phase-2-tui-dashboard is complete.
 
 ## Recent Changes
 
+- **2026-03-11** — Pre-Phase 3 Cleanup implemented (@iteration/004)
+  - 15 FRs implemented (FR-125–FR-139) across 4 new files, 14 modified files
+  - Deps struct migrated from concrete `*fs.` types to `repo.` interfaces (FR-125, FR-137)
+  - `IsStubContent()` moved to `internal/repo/` to eliminate mem/ -> fs/ inverse dependency (FR-126)
+  - Transitive staleness propagation edge-type reasons fixed at all depths (FR-127)
+  - `--project` flag renamed to `--project-root` (FR-128)
+  - `os.Exit()` calls replaced with `ExitError` returns in all cmd/ handlers (FR-129)
+  - `DiagnosticStatus` typed enum added (FR-130)
+  - cmd/ exit code tests and render/ JSON tests added (FR-131, FR-132)
+  - Spec docs updated (FR-133–FR-136)
 - **2026-03-11** — Phase 2 TUI Dashboard implemented (@iteration/003)
   - 37 FRs implemented (FR-88–FR-124) across 26 new files, 12 modified files
   - 374 tests, all passing (128 new tests added by tester)
@@ -34,6 +42,5 @@ None — iteration 003-phase-2-tui-dashboard is complete.
 
 ## Next Priorities
 
-- Fix SHOULD items from Phase 2 reviewer (Glamour preview, editor error, status bar)
-- Fix remaining deferred SHOULD items (transitive reasons, flag rename, GoDoc)
+- Fix remaining SHOULD items (Glamour preview, editor error, status bar)
 - Phase 3: AI Bridge (Pre-Flight + MCP server)

@@ -20,7 +20,7 @@ Phase 1 domain model for mind-cli Core CLI. Scoped to entities, business rules, 
 | **CheckResult** | The outcome of a single validation check. | ID (int), Name (string), Level (CheckLevel), Passed (bool), Message (string) | Belongs to one ValidationReport |
 | **ProjectHealth** | Aggregate status object for `mind status` output. Combines project metadata, brief gate, zone health, workflow state, and diagnostics. | Project, Brief, Zones (map[Zone]ZoneHealth), Workflow (*WorkflowState), LastIteration (*Iteration), Warnings ([]string), Suggestions ([]string) | References Project, Brief, ZoneHealth map, WorkflowState, Iteration |
 | **ZoneHealth** | Completeness metrics for a single documentation zone. | Zone (Zone), Total (int), Present (int), Stubs (int), Complete (int), Files ([]Document) | Belongs to ProjectHealth; references Documents |
-| **Diagnostic** | An issue found by `mind doctor` with remediation advice. | Level (CheckLevel), Message (string), Fix (string), AutoFix (bool) | Produced by doctor command |
+| **Diagnostic** | An issue found by `mind doctor` with remediation advice. | Category (string), Check (string), Status (DiagnosticStatus), Level (CheckLevel), Message (string), Fix (string), AutoFix (bool) | Produced by doctor command |
 
 ### Supporting Types
 
@@ -41,6 +41,7 @@ Phase 1 domain model for mind-cli Core CLI. Scoped to entities, business rules, 
 | **CompletedArtifact** | Struct | Agent, Output, Location (string) | WorkflowState |
 | **DispatchEntry** | Struct | Agent, File, Model, Status (string), StartedAt (time.Time), Duration (time.Duration) | WorkflowState |
 | **Suggestion** | Struct | Action, Reason, Command (string) | ProjectHealth |
+| **DiagnosticStatus** | Enum (string) | `pass`, `fail`, `warn` | Diagnostic |
 | **OutputMode** | Enum (int) | `ModeInteractive` (0), `ModePlain` (1), `ModeJSON` (2) | Renderer (render layer, not domain) |
 
 ## Relationships
@@ -242,7 +243,7 @@ Note: INCOMPLETE is an error state — overview.md is missing,
 |----|-----------|
 | **DC-1** | `domain/` package imports only Go standard library. No `os`, `filepath`, `io`, `net`, or third-party packages. |
 | **DC-2** | Domain types are pure data structures with minimal behavior. Business logic involving I/O is in the service layer. |
-| **DC-3** | All enums (Zone, DocStatus, BriefGate, RequestType, IterationStatus, CheckLevel) are typed string constants, not raw strings. |
+| **DC-3** | All enums (Zone, DocStatus, BriefGate, RequestType, IterationStatus, CheckLevel, DiagnosticStatus) are typed string constants, not raw strings. |
 | **DC-4** | `Slugify()` and `Classify()` are the only domain functions with logic. Both are pure (no side effects, deterministic). |
 
 ---
@@ -384,7 +385,7 @@ ProjectHealth 1───0..1 LockFile (read from mind.lock for staleness panel)
 
 | ID | Constraint |
 |----|-----------|
-| **DC-3** (updated) | All enums (Zone, DocStatus, BriefGate, RequestType, IterationStatus, CheckLevel, **EdgeType, LockStatus, EntryStatus**) are typed string constants, not raw strings. |
+| **DC-3** (updated) | All enums (Zone, DocStatus, BriefGate, RequestType, IterationStatus, CheckLevel, **EdgeType, LockStatus, EntryStatus, DiagnosticStatus**) are typed string constants, not raw strings. |
 | **DC-4** (updated) | `Slugify()`, `Classify()`, `BuildGraph()`, **and `QualityEntry.Validate()`** are the only domain functions with logic. All are pure (no side effects, deterministic). `BuildGraph()` constructs forward/reverse adjacency lists from a slice of GraphEdge. `QualityEntry.Validate()` checks BR-36/37/38 invariants. |
 
 ---

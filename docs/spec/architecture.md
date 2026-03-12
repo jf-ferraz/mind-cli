@@ -71,6 +71,9 @@ Phase 1 delivers: `status`, `init`, `doctor`, `create` (6 artifact types), `docs
 | Service: Validation | `internal/service/validation.go` | Orchestrate doc/ref/config validation suites, unified reports | `domain`, `internal/validate`, `internal/repo` |
 | Service: Generate | `internal/service/generate.go` | Orchestrate document scaffolding, sequence derivation, INDEX.md updates | `domain`, `internal/generate`, `internal/repo` |
 | Service: Workflow | `internal/service/workflow.go` | Read workflow state, list iteration history | `domain`, `internal/repo` |
+| Service: Init | `internal/service/init.go` | Project initialization: directories, stubs, mind.toml, adapters | `domain`, `internal/generate` |
+| Service: Doctor | `internal/service/doctor.go` | Diagnostic checks across framework, docs, brief, config, iterations; auto-fix support | `domain`, `internal/generate`, `internal/repo` |
+| Service: Reconciliation | `internal/service/reconciliation.go` | Orchestrate config loading, lock I/O, engine execution | `domain`, `internal/reconcile`, `internal/repo` |
 
 ### Dependency Matrix
 
@@ -427,14 +430,14 @@ Phase 2 adds a full-screen interactive TUI dashboard (`mind tui`) as a new prese
 | Quality domain types | `domain/quality.go` | `QualityEntry`, `QualityDimension`, BR-36/37/38 validation | Go stdlib only |
 | Quality repo (fs) | `internal/repo/fs/quality_repo.go` | Read `quality-log.yml` from disk | `domain`, `yaml.v3` |
 | Quality repo (mem) | `internal/repo/mem/quality_repo.go` | In-memory test implementation | `domain` |
-| TUI command | `cmd/tui_cmd.go` | `mind tui` Cobra command, project detection, deps wiring | `tui`, `cmd.BuildDeps` |
+| TUI command | `cmd/tui.go` | `mind tui` Cobra command, project detection, deps wiring | `tui`, `cmd.BuildDeps` |
 | Wiring | `cmd/root.go` (modified) | `Deps` struct, `BuildDeps()` function | `internal/service`, `internal/repo/fs` |
 
 ### Updated Dependency Matrix (Phase 2 additions)
 
 ```
-cmd/tui_cmd.go ────────> tui/app
-cmd/tui_cmd.go ────────> cmd.BuildDeps()
+cmd/tui.go ────────> tui/app
+cmd/tui.go ────────> cmd.BuildDeps()
 
 tui/app.go ────────────> tui/* (tab models, styles, keys, messages)
 tui/app.go ────────────> cmd.Deps (service injection)
@@ -509,6 +512,6 @@ domain/quality.go ─────> Go stdlib only
 | New presentation layer | `tui/` package added alongside `cmd/` and `internal/render/` |
 | New repository | `QualityRepo` interface added to `interfaces.go`, with `fs/quality_repo.go` and `mem/quality_repo.go` implementations |
 | New domain types | `QualityEntry` and `QualityDimension` added to `domain/quality.go` with business rule validation |
-| New command | `cmd/tui_cmd.go` added with TUI-specific wiring pattern |
+| New command | `cmd/tui.go` added with TUI-specific wiring pattern |
 | DocRepo extension | `Search()` method added to `DocRepo` interface for TUI document search |
 | Wiring pattern | `BuildDeps()` function and `Deps` struct extracted from `PersistentPreRunE` |
