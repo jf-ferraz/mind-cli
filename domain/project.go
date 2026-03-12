@@ -74,4 +74,5 @@ type Governance struct {
 	ReviewPolicy   string `toml:"review-policy"`
 	CommitPolicy   string `toml:"commit-policy"`
 	BranchStrategy string `toml:"branch-strategy"`
+	DefaultBranch  string `toml:"default-branch"`
 }
