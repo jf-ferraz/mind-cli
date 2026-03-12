@@ -72,6 +72,11 @@
 - Tab state preservation: Tab models kept in `App` struct, not recreated on switch (FR-123).
 - Terminal cleanup: `tea.WithAltScreen()` ensures terminal restored on quit (FR-124).
 
+## Reviewer Fixes
+
+### M-1: Global `r` key intercepts tab-specific handlers (FR-108, FR-111/FR-112)
+- `tui/app.go`: Added tab exemption in global `Refresh` key handler — when active tab is `TabIterations` (Tab 3) or `TabChecks` (Tab 4), `r` is not handled globally and falls through to the tab's `Update()` method. This allows `r` to toggle the REFACTOR type filter on Iterations and to re-run validation on Checks.
+
 ## Architecture Notes
 
 - Import cycle resolved by extracting `Deps` to `internal/deps/` package. `cmd` imports `internal/deps` (via type alias), `tui` imports `internal/deps` directly. Neither `tui` nor `cmd` imports the other.

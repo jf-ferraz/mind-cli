@@ -125,8 +125,14 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			prev := TabID((int(a.activeTab) - 1 + TabCount) % TabCount)
 			return a.switchTab(prev)
 		case key.Matches(msg, globalKeys.Refresh):
-			// Only refresh if no text input is focused
+			// Let 'r' pass through to tab-specific handlers:
+			// - Docs: search input active (existing)
+			// - Iterations: 'r' toggles REFACTOR type filter (FR-108)
+			// - Checks: 'r' re-runs validation (FR-111/FR-112)
 			if a.activeTab == TabDocs && a.docs.searchActive {
+				break // fall through to tab handler
+			}
+			if a.activeTab == TabIterations || a.activeTab == TabChecks {
 				break // fall through to tab handler
 			}
 			return a, tea.Batch(a.loadHealth(), a.loadIterations(), a.loadQuality())
