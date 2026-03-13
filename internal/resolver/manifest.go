@@ -18,7 +18,7 @@ type Manifest struct {
 
 // ManifestMeta holds the [manifest] section metadata.
 type ManifestMeta struct {
-	Version       string `toml:"version"`
+	Version        string `toml:"version"`
 	MaterializedAt string `toml:"materialized_at"`
 }
 
@@ -36,7 +36,7 @@ const ManifestFileName = ".framework-manifest"
 func NewManifest(version string) *Manifest {
 	return &Manifest{
 		Manifest: ManifestMeta{
-			Version:       version,
+			Version:        version,
 			MaterializedAt: time.Now().UTC().Format(time.RFC3339),
 		},
 	}

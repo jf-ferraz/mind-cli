@@ -1,12 +1,12 @@
 package resolver
 
 import (
-"fmt"
-"io"
-"os"
-"path/filepath"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 
-"github.com/jf-ferraz/mind-cli/internal/framework"
+	"github.com/jf-ferraz/mind-cli/internal/framework"
 )
 
 // MaterializeResult is returned by Materialize.
@@ -21,55 +21,55 @@ type MaterializeResult struct {
 // Project-override files are preserved (never overwritten). Global artifacts are
 // copied to the project. A .framework-manifest is written on success.
 func (r *Resolver) Materialize(version string) (*MaterializeResult, error) {
-manifest := NewManifest(version)
-result := &MaterializeResult{Version: version}
+	manifest := NewManifest(version)
+	result := &MaterializeResult{Version: version}
 
-for _, kind := range AllKinds() {
-artifacts, err := r.List(kind)
-if err != nil {
-return nil, fmt.Errorf("listing %s: %w", kind, err)
-}
+	for _, kind := range AllKinds() {
+		artifacts, err := r.List(kind)
+		if err != nil {
+			return nil, fmt.Errorf("listing %s: %w", kind, err)
+		}
 
-for _, a := range artifacts {
-relPath := filepath.Join(string(a.Kind), a.Name)
-targetPath := filepath.Join(r.projectDir, string(a.Kind), a.Name)
+		for _, a := range artifacts {
+			relPath := filepath.Join(string(a.Kind), a.Name)
+			targetPath := filepath.Join(r.projectDir, string(a.Kind), a.Name)
 
-if a.Source == SourceProject {
-// Project override — already in place, just track
-manifest.Add(relPath, SourceProject, a.Checksum)
-result.ProjectKept++
-} else {
-// Global artifact — copy to project
-if err := copyFile(a.Path, targetPath); err != nil {
-return nil, fmt.Errorf("copying %s: %w", relPath, err)
-}
-// Compute checksum of the copied file
-checksum, err := hashFile(targetPath)
-if err != nil {
-return nil, fmt.Errorf("hashing copied file %s: %w", relPath, err)
-}
-manifest.Add(relPath, SourceGlobal, checksum)
-result.Copied++
-}
-result.TotalArtifacts++
-}
-}
+			if a.Source == SourceProject {
+				// Project override — already in place, just track
+				manifest.Add(relPath, SourceProject, a.Checksum)
+				result.ProjectKept++
+			} else {
+				// Global artifact — copy to project
+				if err := copyFile(a.Path, targetPath); err != nil {
+					return nil, fmt.Errorf("copying %s: %w", relPath, err)
+				}
+				// Compute checksum of the copied file
+				checksum, err := hashFile(targetPath)
+				if err != nil {
+					return nil, fmt.Errorf("hashing copied file %s: %w", relPath, err)
+				}
+				manifest.Add(relPath, SourceGlobal, checksum)
+				result.Copied++
+			}
+			result.TotalArtifacts++
+		}
+	}
 
-if err := WriteManifest(r.projectDir, manifest); err != nil {
-return nil, err
-}
+	if err := WriteManifest(r.projectDir, manifest); err != nil {
+		return nil, err
+	}
 
-return result, nil
+	return result, nil
 }
 
 // UpdateResult is returned by Update.
 type UpdateResult struct {
-Version  string   `json:"version"`
-Updated  []string `json:"updated"`
-Added    []string `json:"added"`
-Removed  []string `json:"removed"`
-Kept     int      `json:"kept"`
-LockPath string   `json:"-"`
+	Version  string   `json:"version"`
+	Updated  []string `json:"updated"`
+	Added    []string `json:"added"`
+	Removed  []string `json:"removed"`
+	Kept     int      `json:"kept"`
+	LockPath string   `json:"-"`
 }
 
 // Update re-materializes the project's .mind/ from the global framework,
@@ -194,17 +194,17 @@ func (r *Resolver) Update(version string) (*UpdateResult, error) {
 		}
 	}
 
-if err := WriteManifest(r.projectDir, newManifest); err != nil {
-return nil, err
-}
+	if err := WriteManifest(r.projectDir, newManifest); err != nil {
+		return nil, err
+	}
 
-// Update framework.lock if it exists in the global dir
-lockPath := filepath.Join(r.globalDir, "framework.lock")
-if _, err := os.Stat(lockPath); err == nil {
-lock, err := framework.ReadLock(lockPath)
-if err == nil {
-result.LockPath = lockPath
-// Update project's lock reference
+	// Update framework.lock if it exists in the global dir
+	lockPath := filepath.Join(r.globalDir, "framework.lock")
+	if _, err := os.Stat(lockPath); err == nil {
+		lock, err := framework.ReadLock(lockPath)
+		if err == nil {
+			result.LockPath = lockPath
+			// Update project's lock reference
 			projectLockPath := filepath.Join(filepath.Dir(r.projectDir), "framework.lock")
 			_ = framework.WriteLock(projectLockPath, lock)
 		}
