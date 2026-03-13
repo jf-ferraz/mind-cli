@@ -1,8 +1,8 @@
 # Deployment Readiness Assessment — mind-cli
 
-> **Date**: 2026-03-13 (revised)
-> **Assessor**: Automated (assessment-only, no code changes)
-> **CLI Version**: v0.3.0 — built from `main` @ `c8cd0ff`
+> **Date**: 2026-03-13 (revised²)
+> **Assessor**: Automated
+> **CLI Version**: v0.3.0 (`aad8788`) + post-release fix `a141ba2`
 > **Go Version**: go1.26.1
 > **Tag**: `v0.3.0` pushed to `origin`
 
@@ -12,7 +12,9 @@
 
 **Overall Verdict: PASS — 0 blockers, 2 caveats, 1 recommendation**
 
-The CLI builds, all 19 test packages pass, and all commands execute without crashing. The v0.3.0 tag is pushed to GitHub and `go install github.com/jf-ferraz/mind-cli@v0.3.0` works. Global commands (`config`, `registry`, `framework install/status`) work correctly outside a project directory. Two caveats remain: the `go install` binary is named `mind-cli` (not `mind`), and version injection requires the Makefile. Both are documented.
+The CLI builds, all 18 test packages pass (plus 1 root package with no test files), and all commands execute without crashing. The v0.3.0 tag is pushed to GitHub and `go install github.com/jf-ferraz/mind-cli@v0.3.0` works.
+
+Global commands (`config`, `registry`, `framework install/status`) work correctly outside a project directory — this was a **blocker (B3) identified during the original assessment** and fixed in `a141ba2` (post-v0.3.0). Two caveats remain: the `go install` binary is named `mind-cli` (not `mind`), and version injection requires the Makefile. Both are documented.
 
 ---
 
@@ -22,7 +24,7 @@ The CLI builds, all 19 test packages pass, and all commands execute without cras
 |-------|---------|----------|
 | `go build -o mind .` | **PASS** | Builds cleanly via `make build` |
 | `go install github.com/jf-ferraz/mind-cli@v0.3.0` | **PASS** | Installs successfully; binary named `mind-cli` (documented caveat) |
-| `go test ./...` | **PASS** | 19/19 packages pass (69 test files) |
+| `go test ./...` | **PASS** | 18/18 packages pass (69 test files); root package has no tests |
 | Version injection via ldflags | **PASS** | `make build` and `make install` inject version, commit SHA, and build date |
 | Makefile | **PASS** | Targets: `build`, `install`, `test`, `vet`, `clean`, `help` |
 
@@ -42,7 +44,7 @@ The CLI builds, all 19 test packages pass, and all commands execute without cras
 | GitHub remote configured | **PASS** | `origin → https://github.com/jf-ferraz/mind-cli.git` |
 | Repo publicly accessible | **PASS** | `git ls-remote` succeeds without auth |
 | `mind` (framework) repo accessible | **PASS** | `https://github.com/jf-ferraz/mind.git` also public |
-| Main branch up to date | **PASS** | `origin/main` matches local `main` at `c8cd0ff` |
+| Main branch up to date | **PASS** | `origin/main` includes v0.3.0 (`aad8788`) and post-release fix (`a141ba2`) |
 | v0.3.0 tag pushed | **PASS** | `go install @v0.3.0` resolves correctly |
 | `.gitignore` coverage | **PASS** | `/mind` (build output), `.mind/`, `.claude/`, `archive/`, `prompt.txt` all covered |
 | No binary in working tree | **PASS** | Removed via `make clean` |
@@ -81,6 +83,8 @@ The CLI builds, all 19 test packages pass, and all commands execute without cras
 | `framework.lock` written | **PASS** | SHA-256 checksums, version, source path all recorded |
 
 Global commands correctly exempt from project requirement via `requiresProject()` in `cmd/root.go:124`: `config`, `registry`, `framework install`, and `framework status` all work outside a project directory.
+
+> **Note**: This was **blocker B3** in the original assessment. At v0.3.0 (`aad8788`), `requiresProject()` only exempted `version`, `help`, `init`, `completion`, `tui`, `serve`, and `mind`. The fix adding `config`, `registry`, and `framework install/status` exemptions was delivered in commit `a141ba2`.
 
 ---
 
@@ -214,6 +218,22 @@ All 10 verification steps executed and passed:
 | OS | Linux (Arch) |
 | Go | go1.26.1 |
 | Shell | zsh |
-| mind-cli tag | v0.3.0 (`c8cd0ff`, in sync with origin) |
+| mind-cli tag | v0.3.0 (`aad8788`) |
+| Post-release fix | `a141ba2` (B3: global command exemptions) |
 | mind framework | v2026.03.1 (145 artifacts) |
 | Test project | `/tmp/mind-test` (fresh `mind init` + `framework materialize`) |
+
+---
+
+## Revision History
+
+| Rev | Commit | Date | Changes |
+|-----|--------|------|---------|
+| v1 | `c8cd0ff` | 2026-03-13 | Original assessment — verdict: CONDITIONAL PASS, 3 blockers (B1: unpushed commits, B2: binary name mismatch, B3: global commands require project), 6 warnings |
+| v2 | `d91cf41` | 2026-03-13 | Revised to reflect post-fix state — but incorrectly presented B3 as never having existed |
+| v3 | (this) | 2026-03-13 | Corrected attribution: B3 was a genuine blocker at v0.3.0  fixed by `a141ba2`; test count corrected to 18 (not 19); revision history added |
+
+### What each commit delivered
+
+- **`aad8788` (v0.3.0)**: Makefile, README rewrite, LICENSE, end-to-end walkthrough, docs/guide/ tracked. Resolved B1 (unpushed commits) and W1 (untracked docs).
+- **`a141ba2`**: `requiresProject()` exemptions for config/registry/framework install+status, nil guards in framework.go, Makefile install target fix, README rename instructions. Resolved B2 (binary name) and B3 (global commands).
