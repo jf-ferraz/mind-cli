@@ -85,6 +85,16 @@ func TestClassify(t *testing.T) {
 		{name: "refactor: prefix", input: "refactor: database layer", want: TypeRefactor},
 		{name: "analyze: prefix", input: "analyze: performance bottleneck", want: TypeComplexNew},
 		{name: "explore: prefix", input: "explore: new architecture", want: TypeComplexNew},
+		// Explicit prefix - diagnose
+		{name: "diagnose: prefix", input: "diagnose: intermittent test failure", want: TypeDiagnose},
+		{name: "investigate: prefix", input: "investigate: memory leak in prod", want: TypeDiagnose},
+		// Keyword matching - diagnose keywords (before bug keywords)
+		{name: "diagnose keyword", input: "need to diagnose the issue", want: TypeDiagnose},
+		{name: "investigate keyword", input: "please investigate the failure", want: TypeDiagnose},
+		{name: "troubleshoot keyword", input: "troubleshoot network timeout", want: TypeDiagnose},
+		{name: "root cause keyword", input: "find the root cause of this", want: TypeDiagnose},
+		{name: "why is keyword", input: "why is the server slow", want: TypeDiagnose},
+		{name: "intermittent keyword", input: "intermittent failures in CI", want: TypeDiagnose},
 		// Keyword matching - bug keywords
 		{name: "fix keyword", input: "the login is broken", want: TypeBugFix},
 		{name: "bug keyword", input: "bug in payment processing", want: TypeBugFix},
@@ -138,6 +148,7 @@ func TestClassifyDeterministic(t *testing.T) {
 		"add caching layer",
 		"refactor the database",
 		"something ambiguous",
+		"diagnose: the test regression",
 	}
 	for _, input := range inputs {
 		first := Classify(input)

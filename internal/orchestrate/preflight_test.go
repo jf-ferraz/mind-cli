@@ -226,6 +226,7 @@ func TestAgentChainFor_AllTypes(t *testing.T) {
 		domain.TypeEnhancement,
 		domain.TypeBugFix,
 		domain.TypeRefactor,
+		domain.TypeDiagnose,
 	}
 
 	for _, reqType := range types {

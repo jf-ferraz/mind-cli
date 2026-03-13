@@ -134,7 +134,6 @@ func (s *PreflightService) Resume() (*domain.WorkflowState, error) {
 	return s.stateRepo.ReadWorkflow()
 }
 
-
 func (s *PreflightService) runBriefGate(reqType domain.RequestType) (domain.BriefGate, string, error) {
 	brief, err := s.briefRepo.ParseBrief()
 	if err != nil {
@@ -174,6 +173,8 @@ func typeToString(t domain.RequestType) string {
 		return "refactor"
 	case domain.TypeComplexNew:
 		return "new"
+	case domain.TypeDiagnose:
+		return "diagnose"
 	default:
 		return "enhancement"
 	}
@@ -192,14 +193,18 @@ func AgentChainFor(reqType domain.RequestType) []string {
 
 func agentChain(reqType domain.RequestType) []string {
 	switch reqType {
-	case domain.TypeNewProject, domain.TypeComplexNew:
+	case domain.TypeNewProject:
 		return []string{"analyst", "architect", "developer", "tester", "reviewer"}
+	case domain.TypeComplexNew:
+		return []string{"conversation-moderator", "analyst", "architect", "developer", "tester", "reviewer"}
 	case domain.TypeEnhancement:
 		return []string{"analyst", "developer", "tester", "reviewer"}
 	case domain.TypeBugFix:
-		return []string{"developer", "tester", "reviewer"}
+		return []string{"analyst", "developer", "tester", "reviewer"}
 	case domain.TypeRefactor:
-		return []string{"developer", "tester", "reviewer"}
+		return []string{"analyst", "developer", "reviewer"}
+	case domain.TypeDiagnose:
+		return []string{"problem-solver", "analyst", "developer", "tester", "reviewer"}
 	default:
 		return []string{"analyst", "developer", "tester", "reviewer"}
 	}

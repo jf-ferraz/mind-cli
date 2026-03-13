@@ -15,6 +15,7 @@ const (
 	TypeEnhancement RequestType = "ENHANCEMENT"
 	TypeRefactor    RequestType = "REFACTOR"
 	TypeComplexNew  RequestType = "COMPLEX_NEW"
+	TypeDiagnose    RequestType = "DIAGNOSE"
 )
 
 // IterationStatus represents the completeness of an iteration.
@@ -84,6 +85,17 @@ func Classify(request string) RequestType {
 	}
 	if strings.HasPrefix(lower, "refactor:") {
 		return TypeRefactor
+	}
+	if strings.HasPrefix(lower, "diagnose:") || strings.HasPrefix(lower, "investigate:") {
+		return TypeDiagnose
+	}
+
+	// DIAGNOSE keywords — investigative intent (check before BUG_FIX)
+	diagnoseKeywords := []string{"diagnose", "investigate", "troubleshoot", "root cause", "figure out", "why is", "intermittent", "something is wrong"}
+	for _, kw := range diagnoseKeywords {
+		if strings.Contains(lower, kw) {
+			return TypeDiagnose
+		}
 	}
 
 	// Keyword matching

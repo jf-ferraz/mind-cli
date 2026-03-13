@@ -57,6 +57,7 @@ func TestRequestTypeConstants(t *testing.T) {
 		{name: "ENHANCEMENT", reqType: TypeEnhancement, want: "ENHANCEMENT"},
 		{name: "REFACTOR", reqType: TypeRefactor, want: "REFACTOR"},
 		{name: "COMPLEX_NEW", reqType: TypeComplexNew, want: "COMPLEX_NEW"},
+		{name: "DIAGNOSE", reqType: TypeDiagnose, want: "DIAGNOSE"},
 	}
 
 	for _, tt := range tests {

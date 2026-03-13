@@ -89,7 +89,7 @@ func AllToolDefinitions() []ToolDefinition {
 			InputSchema: InputSchema{
 				Type: "object",
 				Properties: map[string]Property{
-					"type":            {Type: "string", Description: "Request type: NEW_PROJECT, BUG_FIX, ENHANCEMENT, REFACTOR, COMPLEX_NEW"},
+					"type":            {Type: "string", Description: "Request type: NEW_PROJECT, BUG_FIX, ENHANCEMENT, REFACTOR, COMPLEX_NEW, DIAGNOSE"},
 					"descriptor":      {Type: "string", Description: "Short slug describing the workflow"},
 					"iteration_path":  {Type: "string", Description: "Relative path to the iteration folder"},
 					"branch":          {Type: "string", Description: "Git branch name"},
