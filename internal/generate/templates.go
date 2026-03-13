@@ -233,7 +233,17 @@ func IndexEntry(seq int, slug, filename string) string {
 }
 
 // MindTomlTemplate returns the default mind.toml content.
-func MindTomlTemplate(name string) string {
+// If frameworkVersion is non-empty, a [framework] section is included.
+func MindTomlTemplate(name string, frameworkVersion string) string {
+	frameworkSection := ""
+	if frameworkVersion != "" {
+		frameworkSection = fmt.Sprintf(`
+[framework]
+version = "%s"
+mode = "standalone"
+`, frameworkVersion)
+	}
+
 	return fmt.Sprintf(`[manifest]
 schema = "mind/v1.0"
 generation = 1
@@ -255,7 +265,7 @@ test = ""
 lint = ""
 typecheck = ""
 build = ""
-
+%s
 [governance]
 max-retries = 2
 review-policy = ""
@@ -264,7 +274,7 @@ branch-strategy = ""
 
 [profiles]
 active = []
-`, time.Now().Format("2006-01-02T15:04:05Z"), name)
+`, time.Now().Format("2006-01-02T15:04:05Z"), name, frameworkSection)
 }
 
 // ClaudeAdapterTemplate returns the .claude/CLAUDE.md content.

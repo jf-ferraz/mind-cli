@@ -28,7 +28,15 @@ func DefaultGlobalDir() string {
 }
 
 // ArtifactKinds are the subdirectories of .mind/ that hold framework artifacts.
-var ArtifactKinds = []string{"agents", "skills", "commands", "conventions"}
+// Must stay in sync with resolver.AllKinds().
+var ArtifactKinds = []string{
+	"agents", "skills", "commands", "conventions",
+	"conversation", "docs", "platform", "scripts",
+}
+
+// RootFiles lists framework root files outside any artifact kind directory.
+// Must stay in sync with resolver.RootFiles.
+var RootFiles = []string{"CLAUDE.md", "README.md"}
 
 // InstallResult is returned by Install.
 type InstallResult struct {
@@ -52,6 +60,21 @@ func Install(source string, globalDir string, force bool) (*InstallResult, error
 	}
 	if !info.IsDir() {
 		return nil, fmt.Errorf("source must be a directory: %s", source)
+	}
+
+	// Auto-detect .mind/ subdirectory when source is a project root
+	mindSubdir := filepath.Join(source, ".mind")
+	if _, err := os.Stat(mindSubdir); err == nil {
+		hasKind := false
+		for _, kind := range ArtifactKinds {
+			if _, err := os.Stat(filepath.Join(mindSubdir, kind)); err == nil {
+				hasKind = true
+				break
+			}
+		}
+		if hasKind {
+			source = mindSubdir
+		}
 	}
 
 	lockPath := filepath.Join(globalDir, "framework.lock")
@@ -113,6 +136,22 @@ func Install(source string, globalDir string, force bool) (*InstallResult, error
 		}
 	}
 
+	// Copy root files (CLAUDE.md, README.md, etc.)
+	for _, rootFile := range RootFiles {
+		srcPath := filepath.Join(source, rootFile)
+		data, err := os.ReadFile(srcPath)
+		if err != nil {
+			continue // root file is optional
+		}
+		dstPath := filepath.Join(globalDir, rootFile)
+		if err := os.WriteFile(dstPath, data, 0644); err != nil {
+			return nil, fmt.Errorf("copying root file %s: %w", rootFile, err)
+		}
+		hash := sha256.Sum256(data)
+		checksums[rootFile] = "sha256:" + hex.EncodeToString(hash[:])
+		count++
+	}
+
 	version := detectVersion(source)
 
 	lock := &FrameworkLock{
@@ -172,19 +211,33 @@ func collectFiles(dir, base string) (map[string]string, error) {
 		}
 		relPath, _ := filepath.Rel(base, path)
 		parts := strings.SplitN(relPath, string(filepath.Separator), 2)
+
+		// Check root files (top-level, no subdirectory)
 		if len(parts) < 2 {
-			return nil
-		}
-		isKind := false
-		for _, k := range ArtifactKinds {
-			if parts[0] == k {
-				isKind = true
-				break
+			isRoot := false
+			for _, rf := range RootFiles {
+				if relPath == rf {
+					isRoot = true
+					break
+				}
+			}
+			if !isRoot {
+				return nil
+			}
+		} else {
+			// Check artifact kind directories
+			isKind := false
+			for _, k := range ArtifactKinds {
+				if parts[0] == k {
+					isKind = true
+					break
+				}
+			}
+			if !isKind {
+				return nil
 			}
 		}
-		if !isKind {
-			return nil
-		}
+
 		hash, err := hashFile(path)
 		if err != nil {
 			return err

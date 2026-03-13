@@ -3,6 +3,7 @@ package resolver
 import (
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -51,6 +52,33 @@ func (r *Resolver) Materialize(version string) (*MaterializeResult, error) {
 				manifest.Add(relPath, SourceGlobal, checksum)
 				result.Copied++
 			}
+			result.TotalArtifacts++
+		}
+	}
+
+	// Copy root files (CLAUDE.md, README.md) from global if not overridden
+	for _, rootFile := range RootFiles {
+		globalPath := filepath.Join(r.globalDir, rootFile)
+		projectPath := filepath.Join(r.projectDir, rootFile)
+
+		// Check if project has its own version (override)
+		if _, err := os.Stat(projectPath); err == nil {
+			// Project has this root file — treat as override
+			checksum, _ := hashFile(projectPath)
+			manifest.Add(rootFile, SourceProject, checksum)
+			result.ProjectKept++
+			result.TotalArtifacts++
+			continue
+		}
+
+		// Check if global has this root file
+		if _, err := os.Stat(globalPath); err == nil {
+			if err := copyFile(globalPath, projectPath); err != nil {
+				return nil, fmt.Errorf("copying root file %s: %w", rootFile, err)
+			}
+			checksum, _ := hashFile(projectPath)
+			manifest.Add(rootFile, SourceGlobal, checksum)
+			result.Copied++
 			result.TotalArtifacts++
 		}
 	}
@@ -107,80 +135,131 @@ func (r *Resolver) Update(version string) (*UpdateResult, error) {
 	processed := make(map[string]bool)
 
 	for _, kind := range AllKinds() {
-		// Scan global artifacts directly — not via List(), which would show
+		// Scan global artifacts recursively — not via List(), which would show
 		// previously-materialized files as SourceProject.
 		globalKindDir := filepath.Join(r.globalDir, string(kind))
-		globalEntries, _ := os.ReadDir(globalKindDir)
+		if _, statErr := os.Stat(globalKindDir); statErr == nil {
+			if walkErr := filepath.WalkDir(globalKindDir, func(path string, d fs.DirEntry, walkErr error) error {
+				if walkErr != nil || d.IsDir() {
+					return walkErr
+				}
+				name, _ := filepath.Rel(globalKindDir, path)
+				relPath := filepath.Join(string(kind), name)
+				targetPath := filepath.Join(r.projectDir, string(kind), name)
+				processed[relPath] = true
 
-		for _, entry := range globalEntries {
-			if entry.IsDir() {
-				continue
-			}
-			name := entry.Name()
-			relPath := filepath.Join(string(kind), name)
-			globalPath := filepath.Join(globalKindDir, name)
-			targetPath := filepath.Join(r.projectDir, string(kind), name)
-			processed[relPath] = true
+				// Check manifest to determine if project file is a genuine override
+				oldEntry := oldEntries[relPath]
+				if oldEntry != nil && oldEntry.Source == "project" {
+					// Genuine project override — preserve it, re-track
+					checksum, _ := hashFile(targetPath)
+					newManifest.Add(relPath, SourceProject, checksum)
+					result.Kept++
+					return nil
+				}
 
-			// Check manifest to determine if project file is a genuine override
-			oldEntry := oldEntries[relPath]
-			if oldEntry != nil && oldEntry.Source == "project" {
-				// Genuine project override — preserve it, re-track
-				checksum, _ := hashFile(targetPath)
-				newManifest.Add(relPath, SourceProject, checksum)
-				result.Kept++
-				continue
-			}
+				// Not in manifest yet OR was previously global — check for changes
+				globalChecksum, herr := hashFile(path)
+				if herr != nil {
+					return fmt.Errorf("hashing global %s: %w", relPath, herr)
+				}
 
-			// Not in manifest yet OR was previously global — check for changes
-			globalChecksum, err := hashFile(globalPath)
-			if err != nil {
-				return nil, fmt.Errorf("hashing global %s: %w", relPath, err)
-			}
+				if oldEntry != nil && oldEntry.Source == "global" && oldEntry.Checksum == globalChecksum {
+					// Unchanged — keep existing, just re-track
+					newManifest.Add(relPath, SourceGlobal, globalChecksum)
+					result.Kept++
+					return nil
+				}
 
-			if oldEntry != nil && oldEntry.Source == "global" && oldEntry.Checksum == globalChecksum {
-				// Unchanged — keep existing, just re-track
-				newManifest.Add(relPath, SourceGlobal, globalChecksum)
-				result.Kept++
-				continue
-			}
+				// New or changed — copy from global to project
+				if cerr := copyFile(path, targetPath); cerr != nil {
+					return fmt.Errorf("copying %s: %w", relPath, cerr)
+				}
+				checksum, herr := hashFile(targetPath)
+				if herr != nil {
+					return fmt.Errorf("hashing %s: %w", relPath, herr)
+				}
+				newManifest.Add(relPath, SourceGlobal, checksum)
 
-			// New or changed — copy from global to project
-			if err := copyFile(globalPath, targetPath); err != nil {
-				return nil, fmt.Errorf("copying %s: %w", relPath, err)
-			}
-			checksum, err := hashFile(targetPath)
-			if err != nil {
-				return nil, fmt.Errorf("hashing %s: %w", relPath, err)
-			}
-			newManifest.Add(relPath, SourceGlobal, checksum)
-
-			if oldEntry == nil {
-				result.Added = append(result.Added, relPath)
-			} else {
-				result.Updated = append(result.Updated, relPath)
+				if oldEntry == nil {
+					result.Added = append(result.Added, relPath)
+				} else {
+					result.Updated = append(result.Updated, relPath)
+				}
+				return nil
+			}); walkErr != nil {
+				return nil, fmt.Errorf("scanning global %s: %w", kind, walkErr)
 			}
 		}
 
-		// Also re-track project-only artifacts not in global
+		// Also re-track project-only artifacts not in global (recursive)
 		projectKindDir := filepath.Join(r.projectDir, string(kind))
-		projectEntries, _ := os.ReadDir(projectKindDir)
-		for _, entry := range projectEntries {
-			if entry.IsDir() {
-				continue
+		if _, statErr := os.Stat(projectKindDir); statErr == nil {
+			if walkErr := filepath.WalkDir(projectKindDir, func(path string, d fs.DirEntry, walkErr error) error {
+				if walkErr != nil || d.IsDir() {
+					return walkErr
+				}
+				name, _ := filepath.Rel(projectKindDir, path)
+				relPath := filepath.Join(string(kind), name)
+				if processed[relPath] {
+					return nil // Already handled above (exists in global)
+				}
+				// This file only exists in project — genuine project artifact
+				oldEntry := oldEntries[relPath]
+				if oldEntry != nil && oldEntry.Source == "project" {
+					checksum, _ := hashFile(path)
+					newManifest.Add(relPath, SourceProject, checksum)
+					result.Kept++
+					processed[relPath] = true
+				}
+				return nil
+			}); walkErr != nil {
+				return nil, fmt.Errorf("scanning project %s: %w", kind, walkErr)
 			}
-			relPath := filepath.Join(string(kind), entry.Name())
-			if processed[relPath] {
-				continue // Already handled above (exists in global)
-			}
-			// This file only exists in project — genuine project artifact
-			oldEntry := oldEntries[relPath]
-			if oldEntry != nil && oldEntry.Source == "project" {
-				checksum, _ := hashFile(filepath.Join(projectKindDir, entry.Name()))
-				newManifest.Add(relPath, SourceProject, checksum)
-				result.Kept++
-				processed[relPath] = true
-			}
+		}
+	}
+
+	// Handle root files (CLAUDE.md, README.md)
+	for _, rootFile := range RootFiles {
+		globalPath := filepath.Join(r.globalDir, rootFile)
+		targetPath := filepath.Join(r.projectDir, rootFile)
+		processed[rootFile] = true
+
+		oldEntry := oldEntries[rootFile]
+		if oldEntry != nil && oldEntry.Source == "project" {
+			checksum, _ := hashFile(targetPath)
+			newManifest.Add(rootFile, SourceProject, checksum)
+			result.Kept++
+			continue
+		}
+
+		if _, err := os.Stat(globalPath); err != nil {
+			continue // root file doesn't exist in global
+		}
+
+		globalChecksum, err := hashFile(globalPath)
+		if err != nil {
+			return nil, fmt.Errorf("hashing global root file %s: %w", rootFile, err)
+		}
+
+		if oldEntry != nil && oldEntry.Source == "global" && oldEntry.Checksum == globalChecksum {
+			newManifest.Add(rootFile, SourceGlobal, globalChecksum)
+			result.Kept++
+			continue
+		}
+
+		if err := copyFile(globalPath, targetPath); err != nil {
+			return nil, fmt.Errorf("copying root file %s: %w", rootFile, err)
+		}
+		checksum, err := hashFile(targetPath)
+		if err != nil {
+			return nil, fmt.Errorf("hashing copied root file %s: %w", rootFile, err)
+		}
+		newManifest.Add(rootFile, SourceGlobal, checksum)
+		if oldEntry == nil {
+			result.Added = append(result.Added, rootFile)
+		} else {
+			result.Updated = append(result.Updated, rootFile)
 		}
 	}
 

@@ -170,7 +170,7 @@ func TestClaudeAdapterTemplate(t *testing.T) {
 
 // TestMindTomlTemplate verifies the generated mind.toml is valid.
 func TestMindTomlTemplate(t *testing.T) {
-	content := MindTomlTemplate("my-project")
+	content := MindTomlTemplate("my-project", "")
 	if !strings.Contains(content, `name = "my-project"`) {
 		t.Error("mind.toml should contain project name")
 	}
@@ -179,6 +179,23 @@ func TestMindTomlTemplate(t *testing.T) {
 	}
 	if !strings.Contains(content, "generation = 1") {
 		t.Error("mind.toml should have generation = 1")
+	}
+	if strings.Contains(content, "[framework]") {
+		t.Error("mind.toml should NOT contain [framework] when version is empty")
+	}
+}
+
+// TestMindTomlTemplate_WithFramework verifies [framework] section is included when version is provided.
+func TestMindTomlTemplate_WithFramework(t *testing.T) {
+	content := MindTomlTemplate("my-project", "2026.03.1")
+	if !strings.Contains(content, `[framework]`) {
+		t.Error("mind.toml should contain [framework] section")
+	}
+	if !strings.Contains(content, `version = "2026.03.1"`) {
+		t.Error("mind.toml should contain framework version")
+	}
+	if !strings.Contains(content, `mode = "standalone"`) {
+		t.Error("mind.toml should contain mode = standalone")
 	}
 }
 

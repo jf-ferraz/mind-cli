@@ -7,16 +7,27 @@ package resolver
 type ArtifactKind string
 
 const (
-	KindAgents      ArtifactKind = "agents"
-	KindSkills      ArtifactKind = "skills"
-	KindCommands    ArtifactKind = "commands"
-	KindConventions ArtifactKind = "conventions"
+	KindAgents       ArtifactKind = "agents"
+	KindSkills       ArtifactKind = "skills"
+	KindCommands     ArtifactKind = "commands"
+	KindConventions  ArtifactKind = "conventions"
+	KindConversation ArtifactKind = "conversation"
+	KindDocs         ArtifactKind = "docs"
+	KindPlatform     ArtifactKind = "platform"
+	KindScripts      ArtifactKind = "scripts"
 )
 
 // AllKinds returns all recognized artifact kinds in scan order.
 func AllKinds() []ArtifactKind {
-	return []ArtifactKind{KindAgents, KindSkills, KindCommands, KindConventions}
+	return []ArtifactKind{
+		KindAgents, KindSkills, KindCommands, KindConventions,
+		KindConversation, KindDocs, KindPlatform, KindScripts,
+	}
 }
+
+// RootFiles lists framework root files that are not part of any artifact kind
+// but should be installed and materialized (e.g., CLAUDE.md, README.md).
+var RootFiles = []string{"CLAUDE.md", "README.md"}
 
 // ArtifactSource indicates where a resolved artifact was found.
 type ArtifactSource string
