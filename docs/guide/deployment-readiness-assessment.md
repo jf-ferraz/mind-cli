@@ -41,7 +41,7 @@ The CLI builds, all 18 test packages pass (plus 1 root package with no test file
 |-------|---------|----------|
 | GitHub remote configured | **PASS** | `origin → https://github.com/jf-ferraz/mind-cli.git` |
 | Repo publicly accessible | **PASS** | `git ls-remote` succeeds without auth |
-| `mind` (framework) repo accessible | **PASS** | `https://github.com/jf-ferraz/mind.git` also public |
+| `mind` (framework) repo accessible | **PASS** | `https://github.com/jf-ferraz/.mind.git` (branch: `develop`) also public |
 | Main branch up to date | **PASS** | `origin/main` at v0.3.1 tag |
 | v0.3.1 tag pushed | **PASS** | `go install @v0.3.1` resolves correctly (includes all fixes) |
 | `.gitignore` coverage | **PASS** | `/mind` (build output), `.mind/`, `.claude/`, `archive/`, `prompt.txt` all covered |
@@ -75,7 +75,7 @@ The CLI builds, all 18 test packages pass (plus 1 root package with no test file
 | `config show` without project | **PASS** | Works from any directory |
 | `registry list` without project | **PASS** | Works from any directory |
 | `framework status` without project | **PASS** | Works from any directory |
-| Framework requires second repo clone | **NOTE** | Tester must clone `github.com/jf-ferraz/mind.git` separately — documented in README Quick Start |
+| Framework requires second repo clone | **NOTE** | Tester must clone `github.com/jf-ferraz/.mind.git` (branch: `develop`) separately — documented in README Quick Start |
 | `config.toml` auto-created | **PASS** | Created on first access with sensible defaults |
 | `projects.toml` auto-created | **PASS** | Created when `registry add` is first called |
 | `framework.lock` written | **PASS** | SHA-256 checksums, version, source path all recorded |

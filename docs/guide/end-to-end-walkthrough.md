@@ -172,7 +172,7 @@ After installing the CLI, you need to install the framework artifacts globally. 
 The canonical framework lives in the `mind` repository (separate from `mind-cli`). You need a local copy:
 
 ```bash
-git clone https://github.com/jf-ferraz/mind.git ~/dev/projects/mind
+git clone -b develop https://github.com/jf-ferraz/.mind.git ~/dev/projects/mind
 ```
 
 The framework artifacts are in `~/dev/projects/mind/.mind/`.

@@ -4,7 +4,7 @@ Single-binary Go CLI for the Mind Agent Framework. Provides project health diagn
 
 ## Quick Start for Testers
 
-Mind requires two repositories: this CLI and the [mind](https://github.com/jf-ferraz/mind) framework.
+Mind requires two repositories: this CLI and the [.mind](https://github.com/jf-ferraz/.mind) framework.
 
 ```bash
 # 1. Install the CLI
@@ -13,7 +13,7 @@ mv "$(go env GOPATH)/bin/mind-cli" "$(go env GOPATH)/bin/mind"
 # Fish shell: mv (go env GOPATH)/bin/mind-cli (go env GOPATH)/bin/mind
 
 # 2. Clone the framework source (needed for framework install)
-git clone https://github.com/jf-ferraz/mind.git ~/dev/mind
+git clone -b develop https://github.com/jf-ferraz/.mind.git ~/dev/mind
 
 # 3. Install framework artifacts globally (works from any directory)
 mind framework install --source ~/dev/mind
@@ -199,7 +199,7 @@ mind completion bash|zsh|fish         # Generate shell completions
 Mind has two components:
 
 - **`mind` CLI** (this repo) — Go binary with 42 commands for project management
-- **`.mind/` directory** ([mind repo](https://github.com/jf-ferraz/mind)) — Markdown agents, conventions, and skills for AI-assisted workflows
+- **`.mind/` directory** ([.mind repo](https://github.com/jf-ferraz/.mind)) — Markdown agents, conventions, and skills for AI-assisted workflows
 
 The CLI installs framework artifacts globally (`~/.config/mind/`) and materializes them into each project's `.mind/` directory. Projects can override any artifact locally.
 
