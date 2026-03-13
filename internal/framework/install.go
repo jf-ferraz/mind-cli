@@ -85,7 +85,10 @@ func Install(source string, globalDir string, force bool) (*InstallResult, error
 			if err != nil {
 				return err
 			}
-			relPath, _ := filepath.Rel(source, path)
+			relPath, relErr := filepath.Rel(source, path)
+			if relErr != nil {
+				return fmt.Errorf("computing relative path for %s: %w", path, relErr)
+			}
 			dstPath := filepath.Join(globalDir, relPath)
 
 			if d.IsDir() {

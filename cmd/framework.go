@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/jf-ferraz/mind-cli/domain"
@@ -77,7 +78,10 @@ func runFrameworkInstall(cmd *cobra.Command, args []string) error {
 }
 
 func runFrameworkStatus(cmd *cobra.Command, args []string) error {
-	cfg, _ := configRepo.ReadProjectConfig()
+	cfg, err := configRepo.ReadProjectConfig()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not read project config: %v\n", err)
+	}
 	var projFW *domain.FrameworkConfig
 	if cfg != nil {
 		projFW = cfg.Framework
