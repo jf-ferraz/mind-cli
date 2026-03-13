@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -64,58 +65,65 @@ func (r *Resolver) Resolve(kind ArtifactKind, name string) (*ResolvedArtifact, e
 }
 
 // List returns all artifacts of a given kind, with project files taking
-// precedence over global files of the same name.
+// precedence over global files of the same name. Traverses subdirectories
+// recursively, storing relative paths within the kind directory as names.
 func (r *Resolver) List(kind ArtifactKind) ([]ResolvedArtifact, error) {
 	seen := make(map[string]bool)
 	var results []ResolvedArtifact
 
 	// Scan project layer first (takes precedence)
 	projectKindDir := filepath.Join(r.projectDir, string(kind))
-	if entries, err := os.ReadDir(projectKindDir); err == nil {
-		for _, e := range entries {
-			if e.IsDir() {
-				continue
+	if _, err := os.Stat(projectKindDir); err == nil {
+		walkErr := filepath.WalkDir(projectKindDir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return err
 			}
-			name := e.Name()
-			seen[name] = true
-			fullPath := filepath.Join(projectKindDir, name)
-			checksum, err := hashFile(fullPath)
-			if err != nil {
-				return nil, fmt.Errorf("hashing project artifact %s/%s: %w", kind, name, err)
+			relName, _ := filepath.Rel(projectKindDir, path)
+			seen[relName] = true
+			checksum, herr := hashFile(path)
+			if herr != nil {
+				return fmt.Errorf("hashing project artifact %s/%s: %w", kind, relName, herr)
 			}
 			results = append(results, ResolvedArtifact{
-				Path:     fullPath,
+				Path:     path,
 				Source:   SourceProject,
 				Kind:     kind,
-				Name:     name,
+				Name:     relName,
 				Checksum: checksum,
 			})
+			return nil
+		})
+		if walkErr != nil {
+			return nil, walkErr
 		}
 	}
 
 	// Scan global layer (only add if not shadowed)
 	globalKindDir := filepath.Join(r.globalDir, string(kind))
-	if entries, err := os.ReadDir(globalKindDir); err == nil {
-		for _, e := range entries {
-			if e.IsDir() {
-				continue
+	if _, err := os.Stat(globalKindDir); err == nil {
+		walkErr := filepath.WalkDir(globalKindDir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return err
 			}
-			name := e.Name()
-			if seen[name] {
-				continue // project override takes precedence
+			relName, _ := filepath.Rel(globalKindDir, path)
+			if seen[relName] {
+				return nil // project override takes precedence
 			}
-			fullPath := filepath.Join(globalKindDir, name)
-			checksum, err := hashFile(fullPath)
-			if err != nil {
-				return nil, fmt.Errorf("hashing global artifact %s/%s: %w", kind, name, err)
+			checksum, herr := hashFile(path)
+			if herr != nil {
+				return fmt.Errorf("hashing global artifact %s/%s: %w", kind, relName, herr)
 			}
 			results = append(results, ResolvedArtifact{
-				Path:     fullPath,
+				Path:     path,
 				Source:   SourceGlobal,
 				Kind:     kind,
-				Name:     name,
+				Name:     relName,
 				Checksum: checksum,
 			})
+			return nil
+		})
+		if walkErr != nil {
+			return nil, walkErr
 		}
 	}
 

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/jf-ferraz/mind-cli/domain"
+	"github.com/jf-ferraz/mind-cli/internal/framework"
 	"github.com/jf-ferraz/mind-cli/internal/generate"
 )
 
@@ -81,19 +82,28 @@ func (s *InitService) Init(root, name string, withGitHub, fromExisting bool) (*d
 		result.FilesCreated = append(result.FilesCreated, relPath)
 	}
 
+	// Detect installed framework version
+	frameworkVersion := ""
+	globalDir := framework.DefaultGlobalDir()
+	lockPath := filepath.Join(globalDir, "framework.lock")
+	if lock, err := framework.ReadLock(lockPath); err == nil {
+		frameworkVersion = lock.Framework.Version
+	}
+
 	// mind.toml
 	tomlPath := filepath.Join(root, "mind.toml")
+	tomlContent := generate.MindTomlTemplate(name, frameworkVersion)
 	if fromExisting {
 		if _, err := os.Stat(tomlPath); err == nil {
 			result.ExistingPreserved = append(result.ExistingPreserved, "mind.toml")
 		} else {
-			if err := os.WriteFile(tomlPath, []byte(generate.MindTomlTemplate(name)), 0644); err != nil {
+			if err := os.WriteFile(tomlPath, []byte(tomlContent), 0644); err != nil {
 				return nil, fmt.Errorf("write mind.toml: %w", err)
 			}
 			result.FilesCreated = append(result.FilesCreated, "mind.toml")
 		}
 	} else {
-		if err := os.WriteFile(tomlPath, []byte(generate.MindTomlTemplate(name)), 0644); err != nil {
+		if err := os.WriteFile(tomlPath, []byte(tomlContent), 0644); err != nil {
 			return nil, fmt.Errorf("write mind.toml: %w", err)
 		}
 		result.FilesCreated = append(result.FilesCreated, "mind.toml")

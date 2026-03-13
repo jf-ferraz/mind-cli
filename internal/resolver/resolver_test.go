@@ -16,13 +16,14 @@ func setupTestDirs(t *testing.T) (projectDir, globalDir string) {
 }
 
 // writeArtifact writes a file at dir/kind/name with the given content.
+// name can include subdirectory paths (e.g., "subdir/file.md").
 func writeArtifact(t *testing.T, dir string, kind ArtifactKind, name, content string) {
 	t.Helper()
-	kindDir := filepath.Join(dir, string(kind))
-	if err := os.MkdirAll(kindDir, 0755); err != nil {
+	fullPath := filepath.Join(dir, string(kind), name)
+	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(kindDir, name), []byte(content), 0644); err != nil {
+	if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -486,17 +487,316 @@ func TestListAll_EmptyDirs_ReturnsEmpty(t *testing.T) {
 
 // --- AllKinds test ---
 
-func TestAllKinds_ReturnsFourKinds(t *testing.T) {
+func TestAllKinds_ReturnsExpectedKinds(t *testing.T) {
 	kinds := AllKinds()
-	if len(kinds) != 4 {
-		t.Errorf("expected 4 kinds, got %d", len(kinds))
+	if len(kinds) < 4 {
+		t.Errorf("expected at least 4 kinds, got %d", len(kinds))
 	}
-	expected := map[ArtifactKind]bool{
+	required := map[ArtifactKind]bool{
 		KindAgents: true, KindSkills: true, KindCommands: true, KindConventions: true,
 	}
-	for _, k := range kinds {
-		if !expected[k] {
-			t.Errorf("unexpected kind: %s", k)
+	for k := range required {
+		found := false
+		for _, ak := range kinds {
+			if ak == k {
+				found = true
+				break
+			}
 		}
+		if !found {
+			t.Errorf("missing required kind: %s", k)
+		}
+	}
+}
+
+// --- Subdirectory traversal tests (G4 fix validation) ---
+
+func TestList_IncludesSubdirectoryFiles(t *testing.T) {
+	projectDir, globalDir := setupTestDirs(t)
+	writeArtifact(t, globalDir, KindConventions, "top-level.md", "top")
+	writeArtifact(t, globalDir, KindConventions, "code-quality/check1.md", "check 1")
+	writeArtifact(t, globalDir, KindConventions, "code-quality/check2.md", "check 2")
+
+	r := New(projectDir, globalDir)
+	results, err := r.List(KindConventions)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(results) != 3 {
+		t.Fatalf("expected 3 results (1 top-level + 2 subdirectory), got %d", len(results))
+	}
+
+	names := make(map[string]bool)
+	for _, a := range results {
+		names[a.Name] = true
+	}
+	if !names["top-level.md"] {
+		t.Error("missing top-level.md")
+	}
+	if !names[filepath.Join("code-quality", "check1.md")] {
+		t.Errorf("missing code-quality/check1.md, got names: %v", names)
+	}
+	if !names[filepath.Join("code-quality", "check2.md")] {
+		t.Errorf("missing code-quality/check2.md, got names: %v", names)
+	}
+}
+
+func TestList_SubdirProjectOverridesGlobal(t *testing.T) {
+	projectDir, globalDir := setupTestDirs(t)
+	writeArtifact(t, globalDir, KindSkills, "debugging/SKILL.md", "global debugging")
+	writeArtifact(t, projectDir, KindSkills, "debugging/SKILL.md", "project debugging override")
+	writeArtifact(t, globalDir, KindSkills, "planning/SKILL.md", "global planning")
+
+	r := New(projectDir, globalDir)
+	results, err := r.List(KindSkills)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results (override + global), got %d", len(results))
+	}
+
+	byName := make(map[string]ArtifactSource)
+	for _, a := range results {
+		byName[a.Name] = a.Source
+	}
+
+	debugName := filepath.Join("debugging", "SKILL.md")
+	if byName[debugName] != SourceProject {
+		t.Errorf("debugging/SKILL.md should be SourceProject, got %q", byName[debugName])
+	}
+	planName := filepath.Join("planning", "SKILL.md")
+	if byName[planName] != SourceGlobal {
+		t.Errorf("planning/SKILL.md should be SourceGlobal, got %q", byName[planName])
+	}
+}
+
+func TestResolve_SubdirectoryArtifact(t *testing.T) {
+	projectDir, globalDir := setupTestDirs(t)
+	writeArtifact(t, globalDir, KindConventions, "code-quality/check1.md", "check content")
+
+	r := New(projectDir, globalDir)
+	result, err := r.Resolve(KindConventions, filepath.Join("code-quality", "check1.md"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Source != SourceGlobal {
+		t.Errorf("expected SourceGlobal, got %q", result.Source)
+	}
+}
+
+func TestMaterialize_CopiesSubdirectories(t *testing.T) {
+	projectDir, globalDir := setupTestDirs(t)
+	writeArtifact(t, globalDir, KindConventions, "top.md", "top level")
+	writeArtifact(t, globalDir, KindConventions, "checks/01.md", "check 01")
+	writeArtifact(t, globalDir, KindConventions, "checks/02.md", "check 02")
+	writeArtifact(t, globalDir, KindSkills, "debugging/SKILL.md", "debug skill")
+
+	r := New(projectDir, globalDir)
+	result, err := r.Materialize("1.0.0")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.Copied != 4 {
+		t.Errorf("expected 4 copied, got %d", result.Copied)
+	}
+
+	// Verify subdirectory files were actually copied
+	content, err := os.ReadFile(filepath.Join(projectDir, "conventions", "checks", "01.md"))
+	if err != nil {
+		t.Fatalf("subdirectory file not copied: %v", err)
+	}
+	if string(content) != "check 01" {
+		t.Errorf("wrong content: %s", string(content))
+	}
+
+	content, err = os.ReadFile(filepath.Join(projectDir, "skills", "debugging", "SKILL.md"))
+	if err != nil {
+		t.Fatalf("skills subdirectory file not copied: %v", err)
+	}
+	if string(content) != "debug skill" {
+		t.Errorf("wrong content: %s", string(content))
+	}
+
+	// Verify manifest includes subdirectory paths
+	manifest, err := ReadManifest(projectDir)
+	if err != nil {
+		t.Fatalf("manifest not written: %v", err)
+	}
+	checksPath := filepath.Join("conventions", "checks", "01.md")
+	entry := manifest.FindEntry(checksPath)
+	if entry == nil {
+		t.Errorf("manifest missing entry for %s", checksPath)
+	}
+}
+
+// --- Root file tests (C2 — coverage for CLAUDE.md / README.md handling) ---
+
+func TestMaterialize_CopiesRootFiles(t *testing.T) {
+	projectDir, globalDir := setupTestDirs(t)
+	// Place root files in global
+	if err := os.WriteFile(filepath.Join(globalDir, "CLAUDE.md"), []byte("routing hub"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(globalDir, "README.md"), []byte("framework overview"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	writeArtifact(t, globalDir, KindAgents, "agent.md", "agent content")
+
+	r := New(projectDir, globalDir)
+	result, err := r.Materialize("1.0.0")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// 1 kind artifact + 2 root files = 3 total, all copied from global
+	if result.TotalArtifacts != 3 {
+		t.Errorf("expected 3 total artifacts, got %d", result.TotalArtifacts)
+	}
+	if result.Copied != 3 {
+		t.Errorf("expected 3 copied, got %d", result.Copied)
+	}
+
+	// Verify root files exist in project
+	content, err := os.ReadFile(filepath.Join(projectDir, "CLAUDE.md"))
+	if err != nil {
+		t.Fatalf("CLAUDE.md not copied: %v", err)
+	}
+	if string(content) != "routing hub" {
+		t.Errorf("CLAUDE.md wrong content: %s", string(content))
+	}
+
+	// Verify manifest tracks root files
+	manifest, err := ReadManifest(projectDir)
+	if err != nil {
+		t.Fatalf("manifest not written: %v", err)
+	}
+	entry := manifest.FindEntry("CLAUDE.md")
+	if entry == nil {
+		t.Error("manifest missing CLAUDE.md entry")
+	} else if entry.Source != "global" {
+		t.Errorf("CLAUDE.md should have source 'global', got %q", entry.Source)
+	}
+}
+
+func TestMaterialize_RootFileProjectOverride(t *testing.T) {
+	projectDir, globalDir := setupTestDirs(t)
+	// Project has its own CLAUDE.md
+	if err := os.WriteFile(filepath.Join(projectDir, "CLAUDE.md"), []byte("custom routing"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// Global also has CLAUDE.md
+	if err := os.WriteFile(filepath.Join(globalDir, "CLAUDE.md"), []byte("default routing"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	r := New(projectDir, globalDir)
+	result, err := r.Materialize("1.0.0")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Project override should be preserved
+	if result.ProjectKept != 1 {
+		t.Errorf("expected 1 project kept (CLAUDE.md override), got %d", result.ProjectKept)
+	}
+
+	content, _ := os.ReadFile(filepath.Join(projectDir, "CLAUDE.md"))
+	if string(content) != "custom routing" {
+		t.Errorf("project CLAUDE.md was overwritten: %s", string(content))
+	}
+
+	manifest, err := ReadManifest(projectDir)
+	if err != nil {
+		t.Fatalf("manifest not written: %v", err)
+	}
+	entry := manifest.FindEntry("CLAUDE.md")
+	if entry == nil {
+		t.Error("manifest missing CLAUDE.md entry")
+	} else if entry.Source != "project" {
+		t.Errorf("CLAUDE.md should have source 'project', got %q", entry.Source)
+	}
+}
+
+func TestUpdate_RootFileChanges(t *testing.T) {
+	projectDir, globalDir := setupTestDirs(t)
+	if err := os.WriteFile(filepath.Join(globalDir, "CLAUDE.md"), []byte("v1 routing"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	writeArtifact(t, globalDir, KindAgents, "agent.md", "agent")
+
+	r := New(projectDir, globalDir)
+	_, err := r.Materialize("1.0.0")
+	if err != nil {
+		t.Fatalf("materialize: %v", err)
+	}
+
+	// Update CLAUDE.md in global
+	if err := os.WriteFile(filepath.Join(globalDir, "CLAUDE.md"), []byte("v2 routing UPDATED"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// Add README.md in global
+	if err := os.WriteFile(filepath.Join(globalDir, "README.md"), []byte("new readme"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := r.Update("1.0.1")
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+
+	if len(result.Updated) != 1 {
+		t.Errorf("expected 1 updated (CLAUDE.md), got %d: %v", len(result.Updated), result.Updated)
+	}
+	if len(result.Added) != 1 {
+		t.Errorf("expected 1 added (README.md), got %d: %v", len(result.Added), result.Added)
+	}
+
+	content, _ := os.ReadFile(filepath.Join(projectDir, "CLAUDE.md"))
+	if string(content) != "v2 routing UPDATED" {
+		t.Errorf("CLAUDE.md not updated: %s", string(content))
+	}
+
+	content, _ = os.ReadFile(filepath.Join(projectDir, "README.md"))
+	if string(content) != "new readme" {
+		t.Errorf("README.md not added: %s", string(content))
+	}
+}
+
+func TestUpdate_HandlesSubdirectories(t *testing.T) {
+	projectDir, globalDir := setupTestDirs(t)
+	writeArtifact(t, globalDir, KindConventions, "top.md", "top")
+	writeArtifact(t, globalDir, KindConventions, "checks/01.md", "check 01")
+
+	r := New(projectDir, globalDir)
+	_, err := r.Materialize("1.0.0")
+	if err != nil {
+		t.Fatalf("materialize: %v", err)
+	}
+
+	// Add new subdirectory artifact to global
+	writeArtifact(t, globalDir, KindConventions, "checks/02.md", "check 02 new")
+	// Modify existing subdirectory artifact
+	writeArtifact(t, globalDir, KindConventions, "checks/01.md", "check 01 UPDATED")
+
+	result, err := r.Update("1.0.1")
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+
+	if len(result.Added) != 1 {
+		t.Errorf("expected 1 added, got %d: %v", len(result.Added), result.Added)
+	}
+	if len(result.Updated) != 1 {
+		t.Errorf("expected 1 updated, got %d: %v", len(result.Updated), result.Updated)
+	}
+
+	// Verify the updated file
+	content, _ := os.ReadFile(filepath.Join(projectDir, "conventions", "checks", "01.md"))
+	if string(content) != "check 01 UPDATED" {
+		t.Errorf("subdirectory file not updated: %s", string(content))
 	}
 }
