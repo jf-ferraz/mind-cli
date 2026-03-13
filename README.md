@@ -8,7 +8,7 @@ Mind requires two repositories: this CLI and the [mind](https://github.com/jf-fe
 
 ```bash
 # 1. Install the CLI
-go install github.com/jf-ferraz/mind-cli@v0.3.0
+go install github.com/jf-ferraz/mind-cli@v0.3.1
 mv "$(go env GOPATH)/bin/mind-cli" "$(go env GOPATH)/bin/mind"
 
 # 2. Clone the framework source (needed for framework install)

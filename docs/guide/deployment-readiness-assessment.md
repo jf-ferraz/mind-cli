@@ -1,10 +1,10 @@
 # Deployment Readiness Assessment — mind-cli
 
-> **Date**: 2026-03-13 (revised²)
+> **Date**: 2026-03-13 (final)
 > **Assessor**: Automated
-> **CLI Version**: v0.3.0 (`aad8788`) + post-release fix `a141ba2`
+> **CLI Version**: v0.3.1
 > **Go Version**: go1.26.1
-> **Tag**: `v0.3.0` pushed to `origin`
+> **Tag**: `v0.3.1` pushed to `origin` (supersedes v0.3.0 which lacked B3 fix)
 
 ---
 
@@ -12,9 +12,7 @@
 
 **Overall Verdict: PASS — 0 blockers, 2 caveats, 1 recommendation**
 
-The CLI builds, all 18 test packages pass (plus 1 root package with no test files), and all commands execute without crashing. The v0.3.0 tag is pushed to GitHub and `go install github.com/jf-ferraz/mind-cli@v0.3.0` works.
-
-Global commands (`config`, `registry`, `framework install/status`) work correctly outside a project directory — this was a **blocker (B3) identified during the original assessment** and fixed in `a141ba2` (post-v0.3.0). Two caveats remain: the `go install` binary is named `mind-cli` (not `mind`), and version injection requires the Makefile. Both are documented.
+The CLI builds, all 18 test packages pass (plus 1 root package with no test files), and all commands execute without crashing. The v0.3.1 tag is pushed to GitHub and `go install github.com/jf-ferraz/mind-cli@v0.3.1` works. Global commands (`config`, `registry`, `framework install/status`) work correctly outside a project directory. Two caveats remain: the `go install` binary is named `mind-cli` (not `mind`), and version injection requires the Makefile. Both are documented.
 
 ---
 
@@ -23,17 +21,17 @@ Global commands (`config`, `registry`, `framework install/status`) work correctl
 | Check | Verdict | Evidence |
 |-------|---------|----------|
 | `go build -o mind .` | **PASS** | Builds cleanly via `make build` |
-| `go install github.com/jf-ferraz/mind-cli@v0.3.0` | **PASS** | Installs successfully; binary named `mind-cli` (documented caveat) |
+| `go install github.com/jf-ferraz/mind-cli@v0.3.1` | **PASS** | Installs successfully; binary named `mind-cli` (documented caveat) |
 | `go test ./...` | **PASS** | 18/18 packages pass (69 test files); root package has no tests |
 | Version injection via ldflags | **PASS** | `make build` and `make install` inject version, commit SHA, and build date |
 | Makefile | **PASS** | Targets: `build`, `install`, `test`, `vet`, `clean`, `help` |
 
 ### Binary Name Caveat
 
-`go install github.com/jf-ferraz/mind-cli@v0.3.0` produces `~/go/bin/mind-cli`, but the CLI self-identifies as `mind` and all documentation refers to `mind`. The README documents both install paths:
+`go install github.com/jf-ferraz/mind-cli@v0.3.1` produces `~/go/bin/mind-cli`, but the CLI self-identifies as `mind` and all documentation refers to `mind`. The README documents both install paths:
 
 1. **`make install`** — produces `mind` in `$GOPATH/bin` with version injection
-2. **`go install @v0.3.0`** — produces `mind-cli`; tester can symlink: `ln -s ~/go/bin/mind-cli ~/go/bin/mind`
+2. **`go install @v0.3.1`** — produces `mind-cli`; tester can symlink: `ln -s ~/go/bin/mind-cli ~/go/bin/mind`
 
 ---
 
@@ -44,11 +42,11 @@ Global commands (`config`, `registry`, `framework install/status`) work correctl
 | GitHub remote configured | **PASS** | `origin → https://github.com/jf-ferraz/mind-cli.git` |
 | Repo publicly accessible | **PASS** | `git ls-remote` succeeds without auth |
 | `mind` (framework) repo accessible | **PASS** | `https://github.com/jf-ferraz/mind.git` also public |
-| Main branch up to date | **PASS** | `origin/main` includes v0.3.0 (`aad8788`) and post-release fix (`a141ba2`) |
-| v0.3.0 tag pushed | **PASS** | `go install @v0.3.0` resolves correctly |
+| Main branch up to date | **PASS** | `origin/main` at v0.3.1 tag |
+| v0.3.1 tag pushed | **PASS** | `go install @v0.3.1` resolves correctly (includes all fixes) |
 | `.gitignore` coverage | **PASS** | `/mind` (build output), `.mind/`, `.claude/`, `archive/`, `prompt.txt` all covered |
 | No binary in working tree | **PASS** | Removed via `make clean` |
-| Go dependencies | **PASS** | Not vendored; `go.sum` present; `go install @v0.3.0` fetches cleanly |
+| Go dependencies | **PASS** | Not vendored; `go.sum` present; `go install @v0.3.1` fetches cleanly |
 | Docs tracked | **PASS** | `docs/guide/end-to-end-walkthrough.md` and `deployment-readiness-assessment.md` both committed |
 | LICENSE | **PASS** | MIT license file present and tracked |
 | Stale local branches | **NOTE** | 16 local branches from earlier phases — no impact on testers or contributors (remote only has `main`) |
@@ -192,13 +190,13 @@ Global commands correctly exempt from project requirement via `requiresProject()
 
 ---
 
-## 8 — Phase C Verification Results (v0.3.0)
+## 8 — Phase C Verification Results (v0.3.1)
 
 All 10 verification steps executed and passed:
 
 | Step | Commands | Result |
 |------|----------|--------|
-| C1 | `go install @v0.3.0`, `mind-cli version` | **PASS** — binary installs, all commands present |
+| C1 | `go install @v0.3.1`, `mind-cli version` | **PASS** — binary installs, all commands present |
 | C2 | `framework install --source`, `framework status` | **PASS** — v2026.03.1, 145 artifacts |
 | C3 | `mkdir && git init && mind init` | **PASS** — mind.toml, docs/, .claude/ created |
 | C4 | `framework materialize`, `framework diff` | **PASS** — 145 artifacts, no differences |
@@ -218,8 +216,7 @@ All 10 verification steps executed and passed:
 | OS | Linux (Arch) |
 | Go | go1.26.1 |
 | Shell | zsh |
-| mind-cli tag | v0.3.0 (`aad8788`) |
-| Post-release fix | `a141ba2` (B3: global command exemptions) |
+| mind-cli tag | v0.3.1 (includes all fixes from v0.3.0 + `a141ba2`) |
 | mind framework | v2026.03.1 (145 artifacts) |
 | Test project | `/tmp/mind-test` (fresh `mind init` + `framework materialize`) |
 
@@ -231,7 +228,8 @@ All 10 verification steps executed and passed:
 |-----|--------|------|---------|
 | v1 | `c8cd0ff` | 2026-03-13 | Original assessment — verdict: CONDITIONAL PASS, 3 blockers (B1: unpushed commits, B2: binary name mismatch, B3: global commands require project), 6 warnings |
 | v2 | `d91cf41` | 2026-03-13 | Revised to reflect post-fix state — but incorrectly presented B3 as never having existed |
-| v3 | (this) | 2026-03-13 | Corrected attribution: B3 was a genuine blocker at v0.3.0  fixed by `a141ba2`; test count corrected to 18 (not 19); revision history added |
+| v3 | `7dc55c9` | 2026-03-13 | Corrected attribution: B3 was a genuine blocker at v0.3.0 fixed by `a141ba2`; test count corrected to 18 (not 19); revision history added |
+| v4 | (this) | 2026-03-13 | Cut v0.3.1 tag at HEAD (v0.3.0 tag did not include B3 fix); updated all doc references from v0.3.0 → v0.3.1 |
 
 ### What each commit delivered
 

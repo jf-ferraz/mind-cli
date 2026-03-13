@@ -109,7 +109,7 @@ mind version
 You should see output like:
 
 ```
-mind v0.3.0 (c8cd0ff) built 2026-03-13T05:00:00Z linux/amd64
+mind v0.3.1 (<commit>) built 2026-03-13T00:00:00Z linux/amd64
 ```
 
 ### Option B: Build without installing globally
@@ -133,7 +133,7 @@ mind version
 ### Option C: go install from remote
 
 ```bash
-go install github.com/jf-ferraz/mind-cli@v0.3.0
+go install github.com/jf-ferraz/mind-cli@v0.3.1
 
 # Note: go install names the binary 'mind-cli' (from the module name).
 # Create a symlink if you want the 'mind' command:
