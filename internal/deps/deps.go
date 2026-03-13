@@ -30,9 +30,26 @@ type Deps struct {
 	HandoffSvc    *orchestrate.HandoffService
 }
 
+// BuildOpts configures how Deps is constructed.
+type BuildOpts struct {
+	// GlobalOnly skips project root detection — only global services available.
+	GlobalOnly bool
+}
+
 // Build constructs all repositories and services for a given project root.
 // Renderer may be nil when called from the TUI (which uses Lip Gloss directly).
 func Build(root string, r *render.Renderer) *Deps {
+	return BuildWithOpts(root, r, BuildOpts{})
+}
+
+// BuildWithOpts constructs Deps with configurable options.
+// When opts.GlobalOnly is true, project-scoped repos and services are nil.
+func BuildWithOpts(root string, r *render.Renderer, opts BuildOpts) *Deps {
+	if opts.GlobalOnly {
+		return &Deps{
+			Renderer: r,
+		}
+	}
 	docRepo := fs.NewDocRepo(root)
 	iterRepo := fs.NewIterationRepo(root)
 	stateRepo := fs.NewStateRepo(root)

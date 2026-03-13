@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -29,6 +30,11 @@ func (r *ConfigRepo) ReadProjectConfig() (*domain.Config, error) {
 	var cfg domain.Config
 	if err := toml.Unmarshal(data, &cfg); err != nil {
 		return nil, err
+	}
+
+	// Validate [framework] section if present
+	if err := domain.ValidateFrameworkConfig(cfg.Framework); err != nil {
+		return nil, fmt.Errorf("mind.toml: %w", err)
 	}
 
 	return &cfg, nil

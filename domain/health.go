@@ -10,6 +10,14 @@ type ProjectHealth struct {
 	Warnings      []string            `json:"warnings,omitempty"`
 	Suggestions   []string            `json:"suggestions,omitempty"`
 	Staleness     *StalenessInfo      `json:"staleness"`
+	Framework     *FrameworkStatus    `json:"framework,omitempty"`
+}
+
+// FrameworkStatus is the framework section shown in `mind status`.
+type FrameworkStatus struct {
+	Mode       string `json:"mode"`
+	Version    string `json:"version"`
+	DriftCount int    `json:"drift_count"`
 }
 
 // ZoneHealth tracks completeness of a single documentation zone.

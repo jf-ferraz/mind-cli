@@ -1,6 +1,10 @@
 package domain
 
-import "time"
+import (
+	"fmt"
+	"regexp"
+	"time"
+)
 
 // Project represents a Mind Framework project detected on disk.
 type Project struct {
@@ -16,6 +20,7 @@ type Project struct {
 type Config struct {
 	Manifest   Manifest                       `toml:"manifest"`
 	Project    ProjectMeta                    `toml:"project"`
+	Framework  *FrameworkConfig               `toml:"framework,omitempty"`
 	Profiles   Profiles                       `toml:"profiles"`
 	Documents  map[string]map[string]DocEntry `toml:"documents"`
 	Governance Governance                     `toml:"governance"`
@@ -75,4 +80,53 @@ type Governance struct {
 	CommitPolicy   string `toml:"commit-policy"`
 	BranchStrategy string `toml:"branch-strategy"`
 	DefaultBranch  string `toml:"default-branch"`
+}
+
+// DeploymentMode represents the framework deployment mode.
+type DeploymentMode string
+
+const (
+	// ModeStandalone means the project manages its own .mind/ artifacts.
+	ModeStandalone DeploymentMode = "standalone"
+	// ModeThin means the project resolves artifacts from global config.
+	ModeThin DeploymentMode = "thin"
+)
+
+// FrameworkConfig declares a project's relationship to the shared framework.
+// If nil (absent from mind.toml), the project is in standalone mode.
+type FrameworkConfig struct {
+	Version string `toml:"version"`
+	Mode    string `toml:"mode,omitempty"`
+}
+
+// DeploymentModeOrDefault returns the deployment mode, defaulting to standalone.
+func (fc *FrameworkConfig) DeploymentModeOrDefault() DeploymentMode {
+	if fc == nil || fc.Mode == "" || fc.Mode == string(ModeStandalone) {
+		return ModeStandalone
+	}
+	if fc.Mode == string(ModeThin) {
+		return ModeThin
+	}
+	return ModeStandalone
+}
+
+// calVerPattern matches CalVer format YYYY.MM.N
+var calVerPattern = regexp.MustCompile(`^\d{4}\.\d{2}\.\d+$`)
+
+// ValidateFrameworkConfig checks that FrameworkConfig fields are valid.
+// Returns nil if fc is nil (absent section is valid — standalone mode).
+func ValidateFrameworkConfig(fc *FrameworkConfig) error {
+	if fc == nil {
+		return nil
+	}
+	if fc.Version == "" {
+		return fmt.Errorf("framework.version is required when [framework] section is present")
+	}
+	if !calVerPattern.MatchString(fc.Version) {
+		return fmt.Errorf("framework.version %q does not match CalVer format YYYY.MM.N", fc.Version)
+	}
+	if fc.Mode != "" && fc.Mode != string(ModeStandalone) && fc.Mode != string(ModeThin) {
+		return fmt.Errorf("framework.mode %q is not valid; must be %q or %q", fc.Mode, ModeStandalone, ModeThin)
+	}
+	return nil
 }
