@@ -138,6 +138,7 @@ go install github.com/jf-ferraz/mind-cli@v0.3.1
 # Note: go install names the binary 'mind-cli' (from the module name).
 # Create a symlink if you want the 'mind' command:
 ln -s "$(go env GOPATH)/bin/mind-cli" "$(go env GOPATH)/bin/mind"
+# Fish shell: ln -s (go env GOPATH)/bin/mind-cli (go env GOPATH)/bin/mind
 
 # Verify
 mind version

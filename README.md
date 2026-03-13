@@ -10,6 +10,7 @@ Mind requires two repositories: this CLI and the [mind](https://github.com/jf-fe
 # 1. Install the CLI
 go install github.com/jf-ferraz/mind-cli@v0.3.1
 mv "$(go env GOPATH)/bin/mind-cli" "$(go env GOPATH)/bin/mind"
+# Fish shell: mv (go env GOPATH)/bin/mind-cli (go env GOPATH)/bin/mind
 
 # 2. Clone the framework source (needed for framework install)
 git clone https://github.com/jf-ferraz/mind.git ~/dev/mind
@@ -48,6 +49,7 @@ go install github.com/jf-ferraz/mind-cli@latest
 # Note: go install names the binary 'mind-cli' (from the module name).
 # Rename it so all commands work as documented:
 mv "$(go env GOPATH)/bin/mind-cli" "$(go env GOPATH)/bin/mind"
+# Fish shell: mv (go env GOPATH)/bin/mind-cli (go env GOPATH)/bin/mind
 ```
 
 Or build from source (recommended — produces `mind` with version info):
