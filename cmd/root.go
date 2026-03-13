@@ -119,6 +119,8 @@ func Execute() error {
 // requiresProject returns true if the command needs project wiring.
 // Commands like version, help, init, completion, and tui do not require
 // standard CLI wiring (tui handles its own wiring via BuildDeps).
+// Global commands (config, registry, framework install/status) operate on
+// ~/.config/mind/ and do not require a project context.
 func requiresProject(cmd *cobra.Command) bool {
 	name := cmd.Name()
 
@@ -128,9 +130,24 @@ func requiresProject(cmd *cobra.Command) bool {
 		return false
 	}
 
-	// Check parent commands (e.g., "mind help status" should not require project)
-	if cmd.Parent() != nil && cmd.Parent().Name() == "help" {
-		return false
+	// Check parent commands
+	if cmd.Parent() != nil {
+		parentName := cmd.Parent().Name()
+
+		// "mind help <cmd>" should never require project
+		if parentName == "help" {
+			return false
+		}
+
+		// config and registry commands operate on global ~/.config/mind/
+		if parentName == "config" || parentName == "registry" {
+			return false
+		}
+
+		// framework install and status are global; diff/materialize/update need a project
+		if parentName == "framework" && (name == "install" || name == "status") {
+			return false
+		}
 	}
 
 	return true

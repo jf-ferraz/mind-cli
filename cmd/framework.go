@@ -70,6 +70,9 @@ func init() {
 func runFrameworkInstall(cmd *cobra.Command, args []string) error {
 	source := flagFrameworkSource
 	if source == "" {
+		if projectRoot == "" {
+			return exitConfig(fmt.Errorf("--source is required when running outside a Mind project"))
+		}
 		source = filepath.Join(projectRoot, ".mind")
 	}
 
@@ -95,13 +98,15 @@ func runFrameworkInstall(cmd *cobra.Command, args []string) error {
 }
 
 func runFrameworkStatus(cmd *cobra.Command, args []string) error {
-	cfg, err := configRepo.ReadProjectConfig()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: could not read project config: %v\n", err)
-	}
 	var projFW *domain.FrameworkConfig
-	if cfg != nil {
-		projFW = cfg.Framework
+	if configRepo != nil {
+		cfg, err := configRepo.ReadProjectConfig()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not read project config: %v\n", err)
+		}
+		if cfg != nil {
+			projFW = cfg.Framework
+		}
 	}
 
 	result, err := framework.Status("", projFW)

@@ -12,9 +12,9 @@ LDFLAGS     = -X $(MODULE)/cmd.Version=$(VERSION) \
 build:
 	go build -ldflags "$(LDFLAGS)" -o mind .
 
-## install: install to $GOPATH/bin with version info
+## install: install to $GOPATH/bin as 'mind' with version info
 install:
-	go install -ldflags "$(LDFLAGS)" .
+	go build -ldflags "$(LDFLAGS)" -o $$(go env GOPATH)/bin/mind .
 
 ## test: run all tests
 test:
