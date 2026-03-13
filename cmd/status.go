@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/jf-ferraz/mind-cli/domain"
+	"github.com/jf-ferraz/mind-cli/internal/framework"
 	"github.com/spf13/cobra"
 )
 
@@ -32,6 +33,19 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	staleness, err := reconcileSvc.ReadStaleness(projectRoot)
 	if err == nil && staleness != nil {
 		health.Staleness = staleness
+	}
+
+	// Framework panel: only if [framework] section exists in mind.toml.
+	cfg, cfgErr := configRepo.ReadProjectConfig()
+	if cfgErr == nil && cfg != nil && cfg.Framework != nil {
+		fwStatus, fwErr := framework.Status("", cfg.Framework)
+		if fwErr == nil && fwStatus.Installed {
+			health.Framework = &domain.FrameworkStatus{
+				Mode:       string(fwStatus.Mode),
+				Version:    fwStatus.Version,
+				DriftCount: len(fwStatus.DriftFiles),
+			}
+		}
 	}
 
 	fmt.Print(renderer.RenderHealth(health))
