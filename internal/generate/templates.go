@@ -334,3 +334,17 @@ func IndexStub() string {
 <!-- Blueprint entries are auto-managed by mind create blueprint -->
 `
 }
+
+// MCPConfigTemplate returns the .mcp.json content for Claude Code MCP discovery.
+func MCPConfigTemplate() string {
+	return `{
+  "mcpServers": {
+    "mind": {
+      "command": "mind",
+      "args": ["serve"],
+      "env": {}
+    }
+  }
+}
+`
+}

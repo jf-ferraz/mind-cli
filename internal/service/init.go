@@ -116,6 +116,25 @@ func (s *InitService) Init(root, name string, withGitHub, fromExisting bool) (*d
 	}
 	result.FilesCreated = append(result.FilesCreated, ".claude/CLAUDE.md")
 
+	// .mcp.json for Claude Code MCP discovery (G1)
+	mcpPath := filepath.Join(root, ".mcp.json")
+	mcpContent := generate.MCPConfigTemplate()
+	if fromExisting {
+		if _, err := os.Stat(mcpPath); err == nil {
+			result.ExistingPreserved = append(result.ExistingPreserved, ".mcp.json")
+		} else {
+			if err := os.WriteFile(mcpPath, []byte(mcpContent), 0644); err != nil {
+				return nil, fmt.Errorf("write .mcp.json: %w", err)
+			}
+			result.FilesCreated = append(result.FilesCreated, ".mcp.json")
+		}
+	} else {
+		if err := os.WriteFile(mcpPath, []byte(mcpContent), 0644); err != nil {
+			return nil, fmt.Errorf("write .mcp.json: %w", err)
+		}
+		result.FilesCreated = append(result.FilesCreated, ".mcp.json")
+	}
+
 	// .github/agents/ if requested
 	if withGitHub {
 		agentsDir := filepath.Join(root, ".github", "agents")

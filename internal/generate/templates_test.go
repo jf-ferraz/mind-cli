@@ -223,3 +223,20 @@ func TestStubDocument(t *testing.T) {
 		t.Error("Stub should have placeholder comment")
 	}
 }
+
+// TestMCPConfigTemplate verifies .mcp.json template content.
+func TestMCPConfigTemplate(t *testing.T) {
+	content := MCPConfigTemplate()
+	if !strings.Contains(content, "mcpServers") {
+		t.Error("MCP config should contain mcpServers key")
+	}
+	if !strings.Contains(content, `"mind"`) {
+		t.Error("MCP config should contain mind server entry")
+	}
+	if !strings.Contains(content, `"command": "mind"`) {
+		t.Error("MCP config should use mind as command")
+	}
+	if !strings.Contains(content, `"serve"`) {
+		t.Error("MCP config should have serve arg")
+	}
+}

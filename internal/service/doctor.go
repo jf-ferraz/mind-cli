@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/jf-ferraz/mind-cli/domain"
@@ -66,6 +67,10 @@ func (s *DoctorService) Run(fix bool) *domain.DoctorReport {
 
 	// Staleness checks (FR-81)
 	s.checkStaleness(report)
+
+	// MCP and claude CLI checks (G6)
+	s.checkMCP(report)
+	s.checkClaudeCLI(report)
 
 	// Count summary
 	for _, d := range report.Diagnostics {
@@ -271,6 +276,30 @@ func (s *DoctorService) checkStaleness(report *domain.DoctorReport) {
 	}
 }
 
+func (s *DoctorService) checkMCP(report *domain.DoctorReport) {
+	mcpPath := filepath.Join(s.projectRoot, ".mcp.json")
+	if _, err := os.Stat(mcpPath); err == nil {
+		s.addDiag(report, "integration", "MCP config", domain.DiagPass, ".mcp.json exists — Claude Code can discover mind MCP tools", "", false)
+	} else {
+		s.addDiag(report, "integration", "MCP config", domain.DiagWarn,
+			".mcp.json missing — Claude Code cannot discover mind MCP tools automatically",
+			"Run: mind init (or create .mcp.json manually with {\"mcpServers\":{\"mind\":{\"command\":\"mind\",\"args\":[\"serve\"]}}})",
+			true)
+	}
+}
+
+func (s *DoctorService) checkClaudeCLI(report *domain.DoctorReport) {
+	path, err := exec.LookPath("claude")
+	if err != nil {
+		s.addDiag(report, "integration", "Claude CLI", domain.DiagWarn,
+			"claude CLI not found — mind workflow run will output prompts instead of launching automatically",
+			"Install Claude Code: https://claude.ai/code",
+			false)
+		return
+	}
+	s.addDiag(report, "integration", "Claude CLI", domain.DiagPass, fmt.Sprintf("claude CLI found at %s", path), "", false)
+}
+
 func (s *DoctorService) applyFixes(report *domain.DoctorReport) {
 	for _, d := range report.Diagnostics {
 		if !d.AutoFix || d.Status == domain.DiagPass {
@@ -282,6 +311,8 @@ func (s *DoctorService) applyFixes(report *domain.DoctorReport) {
 			s.tryFixDoc(report, d)
 		case d.Category == "framework" && d.Check == "Claude adapter":
 			s.tryFixClaudeAdapter(report)
+		case d.Category == "integration" && d.Check == "MCP config":
+			s.tryFixMCPConfig(report)
 		}
 	}
 }
@@ -319,6 +350,13 @@ func (s *DoctorService) tryFixDoc(report *domain.DoctorReport, d domain.Diagnost
 				report.FixesApplied = append(report.FixesApplied, "Created "+path)
 			}
 		}
+	}
+}
+
+func (s *DoctorService) tryFixMCPConfig(report *domain.DoctorReport) {
+	mcpPath := filepath.Join(s.projectRoot, ".mcp.json")
+	if err := os.WriteFile(mcpPath, []byte(generate.MCPConfigTemplate()), 0644); err == nil {
+		report.FixesApplied = append(report.FixesApplied, "Created .mcp.json")
 	}
 }
 

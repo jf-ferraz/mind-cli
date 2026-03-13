@@ -514,6 +514,135 @@ func TestPromptBuilder_Build_NoIterations(t *testing.T) {
 	}
 }
 
+// PromptBuilder.Build includes MCP tools section.
+func TestPromptBuilder_Build_IncludesMCPTools(t *testing.T) {
+	root := t.TempDir()
+	builder := NewPromptBuilder(root)
+
+	prompt, err := builder.Build("add feature", domain.TypeEnhancement, "docs/iterations/001")
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	if !strings.Contains(prompt, "Available MCP Tools") {
+		t.Error("prompt should contain 'Available MCP Tools' section")
+	}
+	// Spot-check a few tool names
+	for _, tool := range []string{"mind_status", "mind_check_gate", "mind_read_state", "mind_update_state", "mind_suggest_next"} {
+		if !strings.Contains(prompt, tool) {
+			t.Errorf("prompt should contain tool %q", tool)
+		}
+	}
+}
+
+// PromptBuilder.BuildAnalyze returns a non-empty prompt with the topic.
+func TestPromptBuilder_BuildAnalyze(t *testing.T) {
+	root := t.TempDir()
+	builder := NewPromptBuilder(root)
+
+	prompt, err := builder.BuildAnalyze("GraphQL vs REST")
+	if err != nil {
+		t.Fatalf("BuildAnalyze() error = %v", err)
+	}
+	if prompt == "" {
+		t.Error("BuildAnalyze() returned empty prompt")
+	}
+	if !strings.Contains(prompt, "GraphQL vs REST") {
+		t.Error("prompt should contain topic")
+	}
+	if !strings.Contains(prompt, "Conversation Analysis") {
+		t.Error("prompt should contain 'Conversation Analysis' header")
+	}
+}
+
+// PromptBuilder.BuildAnalyze reads moderator agent when it exists.
+func TestPromptBuilder_BuildAnalyze_ReadsModerator(t *testing.T) {
+	root := t.TempDir()
+
+	// Create moderator file
+	modDir := filepath.Join(root, ".mind", "conversation", "agents")
+	if err := os.MkdirAll(modDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(modDir, "moderator.md"), []byte("# Moderator\n\nTest moderator content."), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	builder := NewPromptBuilder(root)
+	prompt, err := builder.BuildAnalyze("test topic")
+	if err != nil {
+		t.Fatalf("BuildAnalyze() error = %v", err)
+	}
+	if !strings.Contains(prompt, "Test moderator content") {
+		t.Error("prompt should include moderator agent content")
+	}
+}
+
+// PromptBuilder.BuildDiscover returns a non-empty prompt with the idea.
+func TestPromptBuilder_BuildDiscover(t *testing.T) {
+	root := t.TempDir()
+	builder := NewPromptBuilder(root)
+
+	prompt, err := builder.BuildDiscover("inventory management system")
+	if err != nil {
+		t.Fatalf("BuildDiscover() error = %v", err)
+	}
+	if prompt == "" {
+		t.Error("BuildDiscover() returned empty prompt")
+	}
+	if !strings.Contains(prompt, "inventory management system") {
+		t.Error("prompt should contain idea")
+	}
+	if !strings.Contains(prompt, "Project Discovery") {
+		t.Error("prompt should contain 'Project Discovery' header")
+	}
+}
+
+// PromptBuilder.BuildDiscover reads discovery agent when it exists.
+func TestPromptBuilder_BuildDiscover_ReadsDiscoveryAgent(t *testing.T) {
+	root := t.TempDir()
+
+	// Create discovery agent file
+	agentDir := filepath.Join(root, ".mind", "agents")
+	if err := os.MkdirAll(agentDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(agentDir, "discovery.md"), []byte("# Discovery\n\nTest discovery content."), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	builder := NewPromptBuilder(root)
+	prompt, err := builder.BuildDiscover("test idea")
+	if err != nil {
+		t.Fatalf("BuildDiscover() error = %v", err)
+	}
+	if !strings.Contains(prompt, "Test discovery content") {
+		t.Error("prompt should include discovery agent content")
+	}
+}
+
+// PromptBuilder.BuildDiscover includes existing brief for update behavior.
+func TestPromptBuilder_BuildDiscover_IncludesExistingBrief(t *testing.T) {
+	root := t.TempDir()
+
+	// Create existing brief
+	specDir := filepath.Join(root, "docs", "spec")
+	if err := os.MkdirAll(specDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(specDir, "project-brief.md"), []byte("# Brief\n\n## Vision\nExisting vision."), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	builder := NewPromptBuilder(root)
+	prompt, err := builder.BuildDiscover("extend the project")
+	if err != nil {
+		t.Fatalf("BuildDiscover() error = %v", err)
+	}
+	if !strings.Contains(prompt, "Existing vision") {
+		t.Error("prompt should include existing brief content")
+	}
+}
+
 // PromptBuilder.recentIterationOverviews returns entries for existing iteration dirs.
 func TestPromptBuilder_RecentIterationOverviews(t *testing.T) {
 	root := t.TempDir()
